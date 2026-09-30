@@ -1,0 +1,4 @@
+employeeId,name,type,busId
+EMP2001,أحمد محمد,main,bus-nozha-01
+EMP2002,Mohamed Ali,main,bus-nozha-01
+EMP2003,سارة أحمد,waiting,bus-nozha-01

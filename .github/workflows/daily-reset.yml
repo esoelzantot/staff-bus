@@ -1,0 +1,37 @@
+name: Daily reset
+
+# Main employees back to IN, waiting back to OUT, direction back to Going.
+# GitHub cron is UTC-only: 21:10 / 22:10 / 23:10 UTC covers ~00:10 Cairo in both summer (UTC+3) and winter (UTC+2).
+# The script only acts between 00:00-05:59 Cairo time and only once per day, so the extra runs are harmless retries.
+on:
+  schedule:
+    - cron: '10 21,22,23 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run now, ignoring the time window and the "already done today" check'
+        type: boolean
+        default: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Write service account key
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+      - name: Reset statuses
+        env:
+          VITE_FIREBASE_PROJECT_ID: staff-bus-e5651
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          if [ "$FORCE" = "true" ]; then npx tsx scripts/reset-daily.ts --force; else npx tsx scripts/reset-daily.ts; fi

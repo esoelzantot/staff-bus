@@ -1,0 +1,130 @@
+import { useMemo, useState } from 'react';
+import { ArrivalSection } from '../../components/ArrivalSection/ArrivalSection';
+import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
+import { Header } from '../../components/Header/Header';
+import { Summary } from '../../components/Summary/Summary';
+import { EmptyState } from '../../components/common/EmptyState';
+import { ErrorBanner } from '../../components/common/ErrorBanner';
+import { Spinner } from '../../components/common/Spinner';
+import { useActiveTrip, useBuses, useBusEmployees } from '../../hooks/useBusData';
+import { useStatusUpdater } from '../../hooks/useStatusUpdater';
+import { recordArrival, resetArrival, setActiveTripType } from '../../services/busTripService';
+import type { Employee, StatusField, TripType } from '../../types';
+import { todayKey } from '../../utils/date/format';
+import { passengersFor } from '../../utils/passengers';
+import { toAppError } from '../../utils/errors';
+
+export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
+  const buses = useBuses();
+  const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
+  const list = buses.data ?? [];
+  const bus = list.find((b) => b.id === selectedBusId) ?? list[0] ?? null;
+
+  const employees = useBusEmployees(bus?.id ?? null);
+  const trip = useActiveTrip(bus);
+  const updater = useStatusUpdater();
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [tripBusy, setTripBusy] = useState(false);
+  const [arrivalBusy, setArrivalBusy] = useState(false);
+
+  const all = employees.data ?? [];
+  const main = useMemo(() => all.filter((e) => e.type === 'main'), [all]);
+  const waiting = useMemo(() => all.filter((e) => e.type === 'waiting'), [all]);
+
+  const tripType: TripType = bus?.activeTripType ?? 'going';
+  const statusField: StatusField = tripType === 'going' ? 'goingStatus' : 'returningStatus';
+
+  // Summary is derived, never edited by hand: everyone who is "in" for the active direction.
+  const passengers: Employee[] = useMemo(() => passengersFor(all, statusField), [all, statusField]);
+
+  async function run(setBusy: (v: boolean) => void, action: () => Promise<void>) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action();
+    } catch (err) {
+      setActionError(toAppError(err).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportPdf() {
+    if (!bus) return;
+    setActionError(null);
+    try {
+      // jsPDF is loaded on demand so it does not slow down the first page load.
+      const { generateSummaryPdf } = await import('../../utils/pdf/generateSummaryPdf');
+      generateSummaryPdf({
+        route: bus.route,
+        busNumber: bus.busNumber,
+        tripType,
+        date: trip.data?.date ?? todayKey(),
+        capacity: bus.capacity,
+        passengers,
+        arrivalTime: trip.data?.arrivalTime ? trip.data.arrivalTime.toDate() : null,
+      });
+    } catch (err) {
+      setActionError(toAppError(err, 'pdf').message);
+    }
+  }
+
+  if (buses.loading) return <Spinner label="جارٍ تحميل بيانات الأتوبيس…" />;
+
+  return (
+    <div className="page">
+      <ErrorBanner message={buses.error} />
+      {!bus ? (
+        <EmptyState>لا توجد رحلة نشطة.</EmptyState>
+      ) : (
+        <>
+          <Header
+            bus={bus}
+            buses={list}
+            onSelectBus={setSelectedBusId}
+            tripBusy={tripBusy}
+            onTripChange={(t) => void run(setTripBusy, () => setActiveTripType(bus.id, t))}
+            onLogout={onLogout}
+          />
+
+          <ErrorBanner message={actionError ?? employees.error ?? trip.error} onDismiss={() => setActionError(null)} />
+          <ErrorBanner message={updater.error} onDismiss={updater.clearError} />
+
+          {employees.loading ? (
+            <Spinner label="جارٍ تحميل الموظفين…" />
+          ) : (
+            <>
+              <div className="twoCol">
+              <EmployeeList
+                title="الأساسي"
+                variant="main"
+                employees={main}
+                pendingValue={updater.pendingValue}
+                onChange={updater.update}
+              />
+              <EmployeeList
+                title="الانتظار"
+                variant="waiting"
+                employees={waiting}
+                pendingValue={updater.pendingValue}
+                onChange={updater.update}
+              />
+              </div>
+              <Summary tripType={tripType} capacity={bus.capacity} passengers={passengers} onExport={() => void exportPdf()} />
+            </>
+          )}
+
+          <ArrivalSection
+            trip={trip.data}
+            loading={trip.loading && !trip.error}
+            busy={arrivalBusy}
+            onArrive={() => trip.data && void run(setArrivalBusy, () => recordArrival(trip.data!.id))}
+            onReset={() => trip.data && void run(setArrivalBusy, () => resetArrival(trip.data!.id))}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
