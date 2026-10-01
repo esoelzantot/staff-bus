@@ -25,7 +25,7 @@ export function BusTracker({ bus, me, arrived }: Props) {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 5_000);
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -93,7 +93,7 @@ export function BusTracker({ bus, me, arrived }: Props) {
           {mapOpen && loc && active && (
             <div className="tracker__map">
               <Suspense fallback={<Spinner label="جارٍ تحميل الخريطة…" />}>
-                <BusMap lat={loc.lat} lng={loc.lng} />
+                <BusMap lat={loc.lat} lng={loc.lng} speed={loc.speed} info={`${loc.sharedByName} · ${age}`} />
               </Suspense>
               <a
                 className="btn btn--ghost"
