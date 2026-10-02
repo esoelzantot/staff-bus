@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrivalSection } from '../../components/ArrivalSection/ArrivalSection';
 import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
+import { EmployeeManager } from '../../components/EmployeeManager/EmployeeManager';
 import { Header } from '../../components/Header/Header';
 import { Summary } from '../../components/Summary/Summary';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -122,6 +123,8 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
             onArrive={() => trip.data && void run(setArrivalBusy, () => recordArrival(trip.data!.id))}
             onReset={() => trip.data && void run(setArrivalBusy, () => resetArrival(trip.data!.id))}
           />
+
+          <EmployeeManager employees={all} bus={bus} buses={list} />
         </>
       )}
     </div>

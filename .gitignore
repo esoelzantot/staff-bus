@@ -9,3 +9,6 @@ data/employees.csv
 
 .firebase
 *.log
+
+.vercel
+.env*
