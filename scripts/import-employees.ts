@@ -101,7 +101,7 @@ async function main() {
   }
 
   console.table(result);
-  console.log('Done. Everyone signs in with their employeeId only.');
+  console.log('Done. Employees sign in with their employeeId only (managers / admins: ID + PIN).');
 }
 
 main().catch((err) => {

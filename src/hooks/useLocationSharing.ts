@@ -5,7 +5,7 @@ import { AppError, makeError, toAppError } from '../utils/errors';
 
 /**
  * Firestore writes are adaptive so the map feels live without burning the free quota:
- *  - moving (≥ 8 m since the last sent position): a write every 2 s at most
+ *  - moving (≥ 8 m since the last sent position): a write every 5 s at most
  *  - parked: only a heartbeat every 15 s, so the sharer still counts as "fresh" (rules: stale after 90 s)
  */
 const MIN_INTERVAL_MS = 5_000;

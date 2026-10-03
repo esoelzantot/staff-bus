@@ -3,12 +3,14 @@
  *
  *   npm run create-user -- bus      <busId> "<Route>" "<Bus number>" [capacity]
  *   npm run create-user -- employee <EMPLOYEE_ID> "<Full Name>" <main|waiting> <busId>
- *   npm run create-user -- manager  <ID>
- *   npm run create-user -- admin    <ID>
+ *   npm run create-user -- manager  <ID>      (asks for a PIN in the terminal)
+ *   npm run create-user -- admin    <ID>      (asks for a PIN in the terminal)
  *
- * Everyone signs in with the ID only. Re-running "employee" for an existing ID does not touch their record.
+ * Employees sign in with the ID only; managers / admins with ID + PIN (see api/login.ts).
+ * Re-running "employee" for an existing ID does not touch their record.
  */
-import { FieldValue, ID_PATTERN, adminDb, normalizeId, setUserProfile, upsertAuthUser } from './lib/admin';
+import { FieldValue, ID_PATTERN, adminDb, normalizeId, setPin, setUserProfile, upsertAuthUser } from './lib/admin';
+import { promptNewPin } from './lib/prompt';
 
 const [kind, ...args] = process.argv.slice(2);
 
@@ -35,9 +37,11 @@ function checkId(raw: string | undefined): string {
 async function main() {
   if (kind === 'manager' || kind === 'admin') {
     const id = checkId(args[0]);
+    const pin = await promptNewPin(id); // fail early, before anything is created
     const uid = await upsertAuthUser(id, id);
     await setUserProfile(uid, { role: kind });
-    console.log(`${kind} ready → sign in with ID: ${id}`);
+    await setPin(uid, pin);
+    console.log(`${kind} ready → sign in with ID ${id} + the PIN you just set`);
     return;
   }
 

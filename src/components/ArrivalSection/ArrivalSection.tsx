@@ -1,4 +1,5 @@
 import { FiCheckCircle, FiFlag, FiRotateCcw } from 'react-icons/fi';
+import { useConfirm } from '../../hooks/useConfirm';
 import type { BusTrip } from '../../types';
 import { formatTime } from '../../utils/date/format';
 import { EmptyState } from '../common/EmptyState';
@@ -14,9 +15,11 @@ interface Props {
 
 export function ArrivalSection({ trip, loading, busy, onArrive, onReset }: Props) {
   const arrived = Boolean(trip?.arrivalTime);
+  const { confirm, dialog } = useConfirm();
 
   return (
     <section className={`section arrival${arrived ? ' is-arrived' : ''}`} aria-labelledby="arrival-title">
+      {dialog}
       <div className="section__head">
         <h2 id="arrival-title">الوصول</h2>
       </div>
@@ -37,8 +40,15 @@ export function ArrivalSection({ trip, loading, busy, onArrive, onReset }: Props
             type="button"
             className="btn btn--ghost"
             disabled={busy}
-            onClick={() => {
-              if (window.confirm('هل تريد إلغاء تسجيل الوصول لهذه الرحلة؟')) onReset();
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'إلغاء تسجيل الوصول',
+                message: 'هل تريد إلغاء تسجيل الوصول لهذه الرحلة؟',
+                confirmLabel: 'نعم، إلغاء الوصول',
+                cancelLabel: 'تراجع',
+                destructive: true,
+              });
+              if (ok) onReset();
             }}
           >
             <FiRotateCcw aria-hidden="true" /> إلغاء تسجيل الوصول
@@ -49,8 +59,14 @@ export function ArrivalSection({ trip, loading, busy, onArrive, onReset }: Props
           type="button"
           className="btn btn--signal btn--xl"
           disabled={busy}
-          onClick={() => {
-            if (window.confirm('هل وصل الأتوبيس الآن؟ سيتم تسجيل وقت الوصول.')) onArrive();
+          onClick={async () => {
+            const ok = await confirm({
+              title: 'وصل الأتوبيس؟',
+              message: 'هل وصل الأتوبيس الآن؟ سيتم تسجيل وقت الوصول.',
+              confirmLabel: 'نعم، وصل',
+              cancelLabel: 'لسه',
+            });
+            if (ok) onArrive();
           }}
         >
           {busy ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiFlag aria-hidden="true" />}

@@ -3,7 +3,7 @@ import {
   getAuth,
   onAuthStateChanged,
   setPersistence,
-  signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   type User as FirebaseUser,
 } from 'firebase/auth';
@@ -16,8 +16,9 @@ void setPersistence(auth, browserLocalPersistence);
 
 export type { FirebaseUser };
 
-export async function signInWithEmail(email: string, password: string): Promise<FirebaseUser> {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
+/** Signs in with the custom token minted by /api/login (the browser never handles a password). */
+export async function signInWithToken(token: string): Promise<FirebaseUser> {
+  const credential = await signInWithCustomToken(auth, token);
   return credential.user;
 }
 

@@ -1,10 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { FiChevronDown, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { EMPLOYEE_ID_PATTERN } from '../../config/constants';
+import { useConfirm } from '../../hooks/useConfirm';
 import { createEmployee, deleteEmployee, updateEmployee } from '../../services/employeeAdminService';
 import type { Bus, Employee, EmployeeType } from '../../types';
 import { toAppError } from '../../utils/errors';
 import { ErrorBanner } from '../common/ErrorBanner';
+import { Modal } from '../common/Modal';
 
 interface Props {
   /** Employees of the selected bus (live). */
@@ -22,6 +24,7 @@ export function EmployeeManager({ employees, bus, buses }: Props) {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const sorted = useMemo(
     () => [...employees].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name, 'ar')),
@@ -29,7 +32,14 @@ export function EmployeeManager({ employees, bus, buses }: Props) {
   );
 
   async function remove(e: Employee) {
-    if (!window.confirm(`حذف الموظف "${e.name}" (${e.employeeId}) نهائياً؟\nسيُحذف حساب دخوله أيضاً ولا يمكن التراجع.`)) return;
+    const ok = await confirm({
+      title: 'حذف موظف',
+      message: `حذف الموظف "${e.name}" (${e.employeeId}) نهائياً؟\nسيُحذف حساب دخوله أيضاً ولا يمكن التراجع.`,
+      confirmLabel: 'حذف نهائياً',
+      cancelLabel: 'تراجع',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(e.id);
     setError(null);
     try {
@@ -96,6 +106,7 @@ export function EmployeeManager({ employees, bus, buses }: Props) {
       </div>
 
       {dialog && <EmployeeDialog state={dialog} bus={bus} buses={buses} onClose={() => setDialog(null)} />}
+      {confirmDialog}
     </details>
   );
 }
@@ -140,7 +151,7 @@ function EmployeeDialog({
   }
 
   return (
-    <div className="modalBackdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    <Modal onClose={onClose} dismissable={!busy}>
       <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="emp-dlg-title" onSubmit={submit}>
         <h1 id="emp-dlg-title">{editing ? 'تعديل موظف' : 'إضافة موظف'}</h1>
 
@@ -197,6 +208,6 @@ function EmployeeDialog({
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

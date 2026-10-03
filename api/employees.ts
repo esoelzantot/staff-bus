@@ -13,36 +13,17 @@
  *
  * Environment (Vercel → Project → Settings → Environment Variables):
  *   FIREBASE_SERVICE_ACCOUNT          the service-account JSON (whole file content)
- *   VITE_EMPLOYEE_EMAIL_DOMAIN, VITE_AUTH_SUFFIX   already set for the web build – MUST match the web app
+ *   VITE_EMPLOYEE_EMAIL_DOMAIN        must match the value the accounts were created with (also used by /api/login)
  */
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth, type Auth } from 'firebase-admin/auth';
-import { FieldValue, getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { employeeEmail, getAdmin, HttpError, ID_PATTERN, randomPassword, type Admin } from './_lib/core.js';
 
-export interface Admin {
-  auth: Auth;
-  db: Firestore;
-}
-
-class HttpError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-// ── credentials derived from the Employee ID (must match src/services/authService.ts) ──────────────
-const EMAIL_DOMAIN = process.env.VITE_EMPLOYEE_EMAIL_DOMAIN || 'employees.busapp.local';
-const AUTH_SUFFIX = process.env.VITE_AUTH_SUFFIX || 'staff-bus-access';
-const employeeEmail = (id: string) => `${id.toLowerCase()}@${EMAIL_DOMAIN}`;
-const employeePassword = (id: string) => `${id}::${AUTH_SUFFIX}`;
+export type { Admin };
 
 // ── input validation ───────────────────────────────────────────────────────────────────────────
 type EmployeeType = 'main' | 'waiting';
 type Body = Record<string, unknown>;
 
-const ID_PATTERN = /^[A-Z0-9_-]{3,32}$/;
 const BUS_ID_PATTERN = /^[\w-]{1,64}$/;
 
 function parseId(raw: unknown): string {
@@ -140,9 +121,12 @@ async function removeEmployeeRecord(a: Admin, id: string): Promise<boolean> {
   });
 }
 
-/** Creates (or refreshes) the Firebase Auth account + users/{uid} profile of an employee. */
+/**
+ * Creates (or refreshes) the Firebase Auth account + users/{uid} profile of an employee.
+ * The account gets a random password nobody knows: employees sign in through /api/login (custom token).
+ */
 async function provisionLogin(a: Admin, id: string, name: string): Promise<void> {
-  const password = employeePassword(id);
+  const password = randomPassword();
   const existing = await findUser(a, id);
   const uid = existing
     ? (await a.auth.updateUser(existing.uid, { password, displayName: name })).uid
@@ -335,23 +319,6 @@ interface Res {
   status(code: number): Res;
   json(body: unknown): void;
   setHeader(name: string, value: string): void;
-}
-
-let cached: Admin | null = null;
-
-function getAdmin(): Admin {
-  if (cached) return cached;
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new HttpError(500, 'الخادم غير مُهيّأ: متغير FIREBASE_SERVICE_ACCOUNT مفقود.');
-  let credential: ReturnType<typeof cert>;
-  try {
-    credential = cert(JSON.parse(raw));
-  } catch {
-    throw new HttpError(500, 'الخادم غير مُهيّأ: قيمة FIREBASE_SERVICE_ACCOUNT غير صالحة.');
-  }
-  const app = getApps()[0] ?? initializeApp({ credential });
-  cached = { auth: getAuth(app), db: getFirestore(app) };
-  return cached;
 }
 
 export default async function handler(req: Req, res: Res): Promise<void> {

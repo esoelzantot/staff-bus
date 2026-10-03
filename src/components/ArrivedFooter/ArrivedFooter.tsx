@@ -1,4 +1,5 @@
 import { FiCheckCircle, FiFlag, FiX } from 'react-icons/fi';
+import { useConfirm } from '../../hooks/useConfirm';
 import type { BusTrip } from '../../types';
 import { formatClock } from '../../utils/date/format';
 
@@ -19,9 +20,11 @@ interface Props {
  */
 export function ArrivedFooter({ trip, loading, busy, canCancel, onArrive, onCancel }: Props) {
   const arrivedAt = trip?.arrivalTime ? trip.arrivalTime.toDate() : null;
+  const { confirm, dialog } = useConfirm();
 
   return (
     <footer className="footer">
+      {dialog}
       {arrivedAt ? (
         <div className="arrivedCard" role="status">
           <FiCheckCircle aria-hidden="true" className="arrivedCard__icon" />
@@ -43,8 +46,15 @@ export function ArrivedFooter({ trip, loading, busy, canCancel, onArrive, onCanc
               aria-label="إلغاء تسجيل الوصول"
               title="إلغاء تسجيل الوصول"
               disabled={busy}
-              onClick={() => {
-                if (window.confirm('هل تريد إلغاء تسجيل الوصول؟ سيختفي من عند كل الموظفين.')) onCancel();
+              onClick={async () => {
+                const ok = await confirm({
+                  title: 'إلغاء تسجيل الوصول',
+                  message: 'هل تريد إلغاء تسجيل الوصول؟ سيختفي من عند كل الموظفين.',
+                  confirmLabel: 'نعم، إلغاء الوصول',
+                  cancelLabel: 'تراجع',
+                  destructive: true,
+                });
+                if (ok) onCancel();
               }}
             >
               {busy ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiX aria-hidden="true" />}
@@ -56,8 +66,14 @@ export function ArrivedFooter({ trip, loading, busy, canCancel, onArrive, onCanc
           type="button"
           className="btn btn--signal btn--xl"
           disabled={busy || loading}
-          onClick={() => {
-            if (window.confirm('هل وصل الأتوبيس الآن؟ سيظهر الوصول لكل الموظفين.')) onArrive();
+          onClick={async () => {
+            const ok = await confirm({
+              title: 'وصلنا؟',
+              message: 'هل وصل الأتوبيس الآن؟ سيظهر الوصول لكل الموظفين.',
+              confirmLabel: 'نعم، وصلنا',
+              cancelLabel: 'لسه',
+            });
+            if (ok) onArrive();
           }}
         >
           {busy ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiFlag aria-hidden="true" />}

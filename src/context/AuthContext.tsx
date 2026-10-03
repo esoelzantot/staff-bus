@@ -29,13 +29,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState({ status: 'signedOut' });
         return;
       }
-      // Validate the restored session against Firestore (role + employee link).
+      // A session appeared (fresh sign-in or restored): validate it against Firestore (role + employee link).
+      // "loading" also takes the sign-in dialog off the screen while that check runs.
+      setState({ status: 'loading' });
       fetchUser(fbUser.uid)
         .then(async (user) => {
           if (current !== run.current) return;
           if (!user) {
-            await logout();
+            // Set the message first: signing out immediately brings the sign-in dialog back.
             setError('هذا الحساب غير مفعّل لاستخدام التطبيق. تواصل مع المسؤول.');
+            await logout();
             setState({ status: 'signedOut' });
             return;
           }

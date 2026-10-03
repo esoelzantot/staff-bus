@@ -4,7 +4,8 @@ rules_version = '2';
 // Staff Bus – Firestore Security Rules
 //
 // Identity : Firebase Auth UID  →  users/{uid}  { role, employeeDocId }
-//            (employees sign in with their Employee ID only – see README "Security model")
+//            Sign-in goes through /api/login (custom token): Employee ID for employees, ID + PIN for
+//            managers / admins – see README "Security model".
 // Roles    : employee | manager | admin
 //
 // Capacity integrity
@@ -38,6 +39,17 @@ service cloud.firestore {
     // 1 when the status is "in", otherwise 0 → used to compute counter deltas.
     function inDelta(before, after) {
       return (after == 'in' ? 1 : 0) - (before == 'in' ? 1 : 0);
+    }
+
+    // ── Trip day ────────────────────────────────────────────────────────────
+    // A trip's "date" must be TODAY in Cairo (the service runs in Cairo, UTC+2 in winter / UTC+3 in summer),
+    // judged by the server clock – a phone with a wrong date or time zone cannot create trips for other days.
+    // Accepting both offsets only matters during the single hour around a daylight-saving change.
+    function pad2(n)   { return n < 10 ? '0' + string(n) : string(n); }
+    function dayKey(t) { return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day()); }
+    function isCairoToday(date) {
+      return date == dayKey(request.time + duration.value(2, 'h'))
+          || date == dayKey(request.time + duration.value(3, 'h'));
     }
 
     // ── Employee status change (used by the employee herself and by managers)
@@ -109,6 +121,7 @@ service cloud.firestore {
         && d.tripType == 'going'
         && d.date is string
         && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && isCairoToday(d.date)
         && tripId == d.busId + '_' + d.date + '_' + d.tripType
         && d.status == 'arrived'
         && d.arrivalTime == request.time
@@ -155,6 +168,8 @@ service cloud.firestore {
         && d.busId is string && exists(busPath(d.busId))
         && d.tripType in ['going', 'returning']
         && d.date is string
+        && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && isCairoToday(d.date)
         && tripId == d.busId + '_' + d.date + '_' + d.tripType
         && d.capacity is int && d.capacity > 0
         && d.status == 'active'
@@ -231,6 +246,15 @@ service cloud.firestore {
     }
 
     // ── Collections ─────────────────────────────────────────────────────────
+    // Server-only collections (written / read exclusively by the Admin SDK in /api and scripts, which bypasses
+    // these rules). Denied to every client – including admins – so PIN hashes and login counters never leak.
+    //   credentials/{uid}      PIN hash of a manager / admin
+    //   loginAttempts/{key}    failed-login counters (per IP and per privileged account)
+    //   meta/{doc}             daily reset + hardening bookkeeping
+    match /credentials/{id}   { allow read, write: if false; }
+    match /loginAttempts/{id} { allow read, write: if false; }
+    match /meta/{id}          { allow read, write: if false; }
+
     match /users/{uid} {
       allow read:  if request.auth != null && (request.auth.uid == uid || isManager());
       allow write: if isAdmin();

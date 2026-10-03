@@ -22,7 +22,6 @@ export function EmployeeCard({ employee, size = 'regular', readOnly = false, isM
             {employee.name}
             {isMe && <span className="meTag">أنت</span>}
           </h3>
-          <p className="card__id">{employee.employeeId}</p>
         </div>
         <span className={`badge badge--${employee.type}`}>{employee.type === 'main' ? 'أساسي' : 'انتظار'}</span>
       </header>

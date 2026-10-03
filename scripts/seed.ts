@@ -4,9 +4,10 @@
  *   npm run seed
  *
  * (Re)creates one sample bus, employees EMP1001–EMP1005 and one sample manager (MGR001),
- * and resets all their statuses. Everyone signs in with the ID only.
+ * and resets all their statuses. Employees sign in with the ID only; the sample manager with
+ * ID + PIN (SEED_MANAGER_PIN from the environment, otherwise "dev-manager-2026" – DEV ONLY).
  */
-import { FieldValue, adminDb, projectId, setUserProfile, upsertAuthUser } from './lib/admin';
+import { FieldValue, adminDb, projectId, setPin, setUserProfile, upsertAuthUser } from './lib/admin';
 
 if (!process.argv.includes('--dev') || process.env.NODE_ENV === 'production') {
   console.error('Refusing to seed: run with "npm run seed" (adds --dev) and NODE_ENV != production.');
@@ -25,6 +26,7 @@ const EMPLOYEES = [
 ] as const;
 
 const MANAGER_ID = 'MGR001';
+const MANAGER_PIN = process.env.SEED_MANAGER_PIN || 'dev-manager-2026';
 
 async function main() {
   console.log(`Seeding DEVELOPMENT data into project "${projectId}" …`);
@@ -57,8 +59,9 @@ async function main() {
 
   const managerUid = await upsertAuthUser(MANAGER_ID, 'Sample Manager');
   await setUserProfile(managerUid, { role: 'manager' });
+  await setPin(managerUid, MANAGER_PIN);
 
-  console.log('Done. Sign in with any of these IDs:');
+  console.log(`Done. Sign in with any of these IDs (the manager also needs the PIN "${MANAGER_PIN}"):`);
   console.table([
     ...EMPLOYEES.map((e) => ({ id: e.employeeId, name: e.name, role: 'employee' })),
     { id: MANAGER_ID, name: 'Sample Manager', role: 'manager (full dashboard)' },

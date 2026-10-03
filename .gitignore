@@ -1,7 +1,9 @@
 node_modules
 dist
-.env
-.env.local
+coverage
+
+.env*
+!.env.example
 serviceAccountKey.json
 
 # real employee data (personal) – keep it out of git
@@ -11,4 +13,3 @@ data/employees.csv
 *.log
 
 .vercel
-.env*

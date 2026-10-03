@@ -2,6 +2,10 @@ import { FirebaseError } from 'firebase/app';
 
 export type AppErrorCode =
   | 'invalid-credentials'
+  | 'pin-required'
+  | 'invalid-pin'
+  | 'pin-not-set'
+  | 'locked'
   | 'invalid-input'
   | 'no-access'
   | 'bus-full'
@@ -27,6 +31,10 @@ export class AppError extends Error {
 
 const MESSAGES: Record<AppErrorCode, string> = {
   'invalid-credentials': 'رقم الموظف غير موجود. تأكد من الرقم وحاول مرة أخرى.',
+  'pin-required': 'أدخل الرقم السري لهذا الحساب.',
+  'invalid-pin': 'الرقم السري غير صحيح.',
+  'pin-not-set': 'لم يتم تفعيل رقم سري لهذا الحساب. تواصل مع المسؤول.',
+  locked: 'تم إيقاف المحاولات مؤقتاً لهذا الحساب بسبب كثرة المحاولات الخاطئة. حاول بعد 15 دقيقة.',
   'invalid-input': 'تأكد من البيانات المدخلة وحاول مرة أخرى.',
   'no-access': 'هذا الحساب غير مفعّل لاستخدام التطبيق. تواصل مع المسؤول.',
   'bus-full': 'الأتوبيس ممتلئ حالياً.',

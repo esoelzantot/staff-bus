@@ -1,6 +1,8 @@
 import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { EMAIL_DOMAIN, ID_PATTERN, employeeEmail, randomPassword } from '../../api/_lib/core.js';
+import { hashPin } from '../../api/_lib/pin.js';
 
 export const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
 if (!projectId) {
@@ -18,19 +20,19 @@ export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
 export { FieldValue };
 
-// These three MUST match src/config/constants.ts so the web app can sign in with just the ID.
-const EMPLOYEE_EMAIL_DOMAIN = process.env.VITE_EMPLOYEE_EMAIL_DOMAIN || 'employees.busapp.local';
-const EMPLOYEE_AUTH_SUFFIX = process.env.VITE_AUTH_SUFFIX || 'staff-bus-access';
-export const ID_PATTERN = /^[A-Z0-9_-]{3,32}$/;
+// The ID → Auth account mapping is shared with the /api functions (single source of truth).
+export { EMAIL_DOMAIN, ID_PATTERN, employeeEmail };
 
 export const normalizeId = (raw: string) => raw.trim().toUpperCase();
-export const employeeEmail = (id: string) => `${id.toLowerCase()}@${EMPLOYEE_EMAIL_DOMAIN}`;
-export const employeePassword = (id: string) => `${id}::${EMPLOYEE_AUTH_SUFFIX}`;
 
-/** Creates the Auth user or, when it already exists, resets its password. Returns the uid. */
+/**
+ * Creates the Auth user or, when it already exists, gives it a fresh RANDOM password. Returns the uid.
+ * Nobody signs in with that password: the web app signs in through /api/login (custom token), so a
+ * derived / guessable password must never be set here.
+ */
 export async function upsertAuthUser(id: string, displayName?: string): Promise<string> {
   const email = employeeEmail(id);
-  const password = employeePassword(id);
+  const password = randomPassword();
   try {
     const existing = await adminAuth.getUserByEmail(email);
     await adminAuth.updateUser(existing.uid, { password, displayName });
@@ -40,6 +42,15 @@ export async function upsertAuthUser(id: string, displayName?: string): Promise<
     const created = await adminAuth.createUser({ email, password, displayName, emailVerified: true });
     return created.uid;
   }
+}
+
+/** Stores the PIN (hashed) of a manager / admin in credentials/{uid} and lifts any lock on the account. */
+export async function setPin(uid: string, pin: string): Promise<void> {
+  await adminDb
+    .collection('credentials')
+    .doc(uid)
+    .set({ pinHash: await hashPin(pin), updatedAt: FieldValue.serverTimestamp() });
+  await adminDb.collection('loginAttempts').doc(`uid_${uid}`).delete();
 }
 
 export async function setUserProfile(

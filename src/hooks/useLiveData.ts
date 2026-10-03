@@ -19,7 +19,8 @@ export function useLiveData<T>(subscribe: Subscribe<T> | null, deps: readonly un
       setState({ data: null, loading: false, error: null });
       return;
     }
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    // A new subscription (another bus / day / employee): never keep showing the previous one's data.
+    setState({ data: null, loading: true, error: null });
     return subscribe(
       (data) => setState({ data, loading: false, error: null }),
       (err) => setState({ data: null, loading: false, error: toAppError(err).message }),

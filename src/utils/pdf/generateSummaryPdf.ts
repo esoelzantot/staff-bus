@@ -117,7 +117,7 @@ export function generateSummaryPdf(data: SummaryPdfData): void {
       }
       drawText(doc, `${index + 1}.`, PAGE.margin, y, { size: 11, color: MUTED });
       drawText(doc, p.name, PAGE.margin + 28, y, { size: 12 });
-      drawText(doc, p.employeeId, PAGE.margin + 300, y, { size: 10, color: MUTED });
+      // The Employee ID is the sign-in credential, so it is never printed (the PDF is shared around).
       drawText(doc, p.type === 'main' ? 'Main' : 'Waiting', PAGE.margin + 400, y, { size: 10, color: MUTED });
       y += 22;
     });
