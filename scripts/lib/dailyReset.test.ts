@@ -1,39 +1,64 @@
 import { describe, expect, it } from 'vitest';
-import { planBusReset, type EmployeeState } from './dailyReset';
+import { planBusReset, planSnapshot, type EmployeeState } from './dailyReset';
 
-const e = (id: string, type: EmployeeState['type'], going: 'in' | 'out', returning: 'in' | 'out'): EmployeeState => ({
-  id,
-  type,
-  goingStatus: going,
-  returningStatus: returning,
-});
+const e = (
+  id: string,
+  type: EmployeeState['type'],
+  going: 'in' | 'out',
+  returning: 'in' | 'out',
+  hasRecordToday = false,
+): EmployeeState => ({ id, type, goingStatus: going, returningStatus: returning, hasRecordToday });
 
 describe('planBusReset', () => {
-  it('puts main employees IN and waiting employees OUT, touching only those that differ', () => {
-    const plan = planBusReset(13, [
-      e('m1', 'main', 'out', 'in'),
-      e('m2', 'main', 'in', 'in'),
-      e('w1', 'waiting', 'in', 'out'),
-      e('w2', 'waiting', 'out', 'out'),
-    ]);
+  it('starts main employees IN (and counts the day), waiting employees OUT (no day)', () => {
+    const plan = planBusReset(13, [e('m1', 'main', 'out', 'in'), e('w1', 'waiting', 'in', 'out')]);
     expect(plan).toEqual({
-      updates: [
-        { id: 'm1', status: 'in' },
-        { id: 'w1', status: 'out' },
+      employees: [
+        { id: 'm1', seed: true, going: 'in', returning: 'in', goingTally: 1, returningTally: 1 },
+        { id: 'w1', seed: true, going: 'out', returning: 'out', goingTally: 0, returningTally: 0 },
       ],
-      count: 2,
+      goingCount: 1,
+      returningCount: 1,
     });
   });
 
-  it('refuses a roster whose main employees do not fit the bus', () => {
+  it('every employee gets a record for the new day, even when nothing changed', () => {
+    const plan = planBusReset(13, [e('m1', 'main', 'in', 'in'), e('w1', 'waiting', 'out', 'out')]);
+    if ('error' in plan) throw new Error(plan.error);
+    expect(plan.employees.every((p) => p.seed)).toBe(true);
+  });
+
+  it("never counts a day twice: an employee with today's record is left untouched", () => {
+    const plan = planBusReset(13, [e('m1', 'main', 'out', 'in', true), e('m2', 'main', 'in', 'in')]);
+    if ('error' in plan) throw new Error(plan.error);
+    expect(plan.employees[0]).toEqual({
+      id: 'm1',
+      seed: false,
+      going: 'out',
+      returning: 'in',
+      goingTally: 0,
+      returningTally: 0,
+    });
+    // the bus counters follow the real statuses (m1 is OUT for going, so only m2 counts)
+    expect(plan.goingCount).toBe(1);
+    expect(plan.returningCount).toBe(2);
+  });
+
+  it('refuses a roster that does not fit the bus', () => {
     const plan = planBusReset(2, [e('a', 'main', 'in', 'in'), e('b', 'main', 'in', 'in'), e('c', 'main', 'in', 'in')]);
     expect('error' in plan).toBe(true);
   });
+});
 
-  it('is a no-op when the day already starts clean', () => {
-    expect(planBusReset(13, [e('m1', 'main', 'in', 'in'), e('w1', 'waiting', 'out', 'out')])).toEqual({
-      updates: [],
-      count: 1,
-    });
+describe('planSnapshot (one-time start on a running system)', () => {
+  it('records today from the CURRENT statuses and counts the directions that are IN', () => {
+    expect(planSnapshot([e('a', 'main', 'in', 'out'), e('b', 'waiting', 'out', 'in')])).toEqual([
+      { id: 'a', seed: true, going: 'in', returning: 'out', goingTally: 1, returningTally: 0 },
+      { id: 'b', seed: true, going: 'out', returning: 'in', goingTally: 0, returningTally: 1 },
+    ]);
+  });
+
+  it("skips employees that already have today's record (safe to run twice)", () => {
+    expect(planSnapshot([e('a', 'main', 'in', 'in', true)])).toEqual([]);
   });
 });

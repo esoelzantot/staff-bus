@@ -4,6 +4,8 @@ export const COLLECTIONS = {
   buses: 'buses',
   busTrips: 'busTrips',
   busLocations: 'busLocations',
+  /** Sub-collection of employees/{id}: the daily IN record. */
+  attendance: 'attendance',
 } as const;
 
 export const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || 'Employee Bus Service';

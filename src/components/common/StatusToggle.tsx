@@ -6,7 +6,7 @@ interface Props {
   value: EmployeeStatus;
   /** Value currently being saved, or null when idle. */
   pendingValue: EmployeeStatus | null;
-  /** Number of times this employee switched to IN. */
+  /** Number of days this employee was IN. */
   count: number;
   disabled?: boolean;
   onChange: (value: EmployeeStatus) => void;
@@ -23,7 +23,7 @@ export function StatusToggle({ label, value, pendingValue, count, disabled, onCh
     <div className="toggle" role="group" aria-label={label}>
       <span className="toggle__label">
         {label}
-        <span className="tally" title={`عدد مرات IN: ${count}`} aria-label={`عدد مرات IN: ${count}`}>
+        <span className="tally" title={`عدد أيام IN: ${count}`} aria-label={`عدد أيام IN: ${count}`}>
           {count}
         </span>
         {saving && <span className="toggle__saving">جارٍ الحفظ…</span>}

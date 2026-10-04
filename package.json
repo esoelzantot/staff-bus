@@ -15,6 +15,7 @@
     "test:rules": "firebase emulators:exec --only firestore --project demo-staff-bus \"vitest run --config vitest.rules.config.ts\"",
     "seed": "tsx --env-file=.env scripts/seed.ts --dev",
     "reset-daily": "tsx --env-file=.env scripts/reset-daily.ts",
+    "attendance-start": "tsx --env-file=.env scripts/attendance-start.ts",
     "import-employees": "tsx --env-file=.env scripts/import-employees.ts",
     "create-user": "tsx --env-file=.env scripts/create-user.ts",
     "set-pin": "tsx --env-file=.env scripts/set-pin.ts",

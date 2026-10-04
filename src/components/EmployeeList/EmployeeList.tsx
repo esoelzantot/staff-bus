@@ -10,6 +10,10 @@ interface Props {
   meId?: string;
   pendingValue?: (employeeId: string, field: StatusField) => EmployeeStatus | null;
   onChange?: (employeeId: string, field: StatusField, value: EmployeeStatus) => void;
+  /** Managers only: shows a "daily IN record (PDF)" button on every card. */
+  onExportLog?: (employee: Employee) => void;
+  /** Id of the employee whose PDF is being prepared (disables that card's button). */
+  exportingId?: string | null;
 }
 
 const EMPTY: Record<EmployeeType, string> = {
@@ -17,7 +21,17 @@ const EMPTY: Record<EmployeeType, string> = {
   waiting: 'لا يوجد موظفون في قائمة الانتظار.',
 };
 
-export function EmployeeList({ title, variant, employees, readOnly, meId, pendingValue, onChange }: Props) {
+export function EmployeeList({
+  title,
+  variant,
+  employees,
+  readOnly,
+  meId,
+  pendingValue,
+  onChange,
+  onExportLog,
+  exportingId,
+}: Props) {
   return (
     <section className={`section section--${variant}`} aria-labelledby={`list-${variant}`}>
       <div className="section__head">
@@ -36,6 +50,8 @@ export function EmployeeList({ title, variant, employees, readOnly, meId, pendin
               isMe={e.id === meId}
               pendingValue={pendingValue}
               onChange={onChange}
+              onExportLog={onExportLog}
+              exporting={exportingId === e.id}
             />
           ))}
         </div>

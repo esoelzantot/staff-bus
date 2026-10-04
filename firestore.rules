@@ -52,6 +52,15 @@ service cloud.firestore {
           || date == dayKey(request.time + duration.value(3, 'h'));
     }
 
+    // ── IN tally = number of DAYS the employee was IN (per direction) ──────
+    // Going OUT → IN adds one day, IN → OUT takes it back (so IN, OUT, IN on the same day is still one day);
+    // it never goes below zero. The second branch is the legacy behaviour of app versions that are still open on
+    // some phones (+1 on OUT → IN, unchanged otherwise) – delete it once every client has been refreshed.
+    function tallyOk(before, after, delta) {
+      return after == ((before + delta) < 0 ? 0 : (before + delta))
+          || after == before + (delta == 1 ? 1 : 0);
+    }
+
     // ── Employee status change (used by the employee herself and by managers)
     function statusUpdateValid() {
       let before    = resource.data;
@@ -62,9 +71,9 @@ service cloud.firestore {
       let dR        = inDelta(before.returningStatus, after.returningStatus);
       return after.diff(before).affectedKeys()
             .hasOnly(['goingStatus', 'returningStatus', 'goingInCount', 'returningInCount', 'updatedAt'])
-        // IN tallies go up by exactly 1 on an OUT → IN switch and never change otherwise
-        && after.get('goingInCount', 0) == before.get('goingInCount', 0) + (dG == 1 ? 1 : 0)
-        && after.get('returningInCount', 0) == before.get('returningInCount', 0) + (dR == 1 ? 1 : 0)
+        // IN tallies count days: +1 on OUT → IN, -1 on IN → OUT (see tallyOk)
+        && tallyOk(before.get('goingInCount', 0), after.get('goingInCount', 0), dG)
+        && tallyOk(before.get('returningInCount', 0), after.get('returningInCount', 0), dR)
         && after.goingStatus in ['in', 'out']
         && after.returningStatus in ['in', 'out']
         && after.updatedAt == request.time
@@ -72,6 +81,22 @@ service cloud.firestore {
         && busAfter.returningCount == busBefore.returningCount + dR
         && (dG <= 0 || busAfter.goingCount <= busBefore.capacity)
         && (dR <= 0 || busAfter.returningCount <= busBefore.capacity);
+    }
+
+    // ── Daily IN record: employees/{employeeId}/attendance/{yyyy-mm-dd} ────
+    // One document per person per Cairo day, kept in step with the employee's statuses by the client AFTER the
+    // status change is committed (and created at midnight by the daily reset). It may only describe TODAY and must
+    // equal the employee's current statuses, so the log can never claim something the statuses do not say.
+    function attendanceValid(empId, day) {
+      let d = request.resource.data;
+      let e = get(employeePath(empId)).data;
+      return d.keys().hasOnly(['date', 'goingStatus', 'returningStatus', 'updatedAt'])
+        && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.date == day
+        && isCairoToday(day)
+        && d.goingStatus == e.goingStatus
+        && d.returningStatus == e.returningStatus
+        && d.updatedAt == request.time;
     }
 
     // ── Bus counter change made by an employee (must mirror her own status change)
@@ -272,6 +297,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
       allow update: if isAdmin()
                     || ((ownsEmployee(empId) || isManager()) && statusUpdateValid());
+    }
+
+    // The history is read by managers (PDF export) and by the employee herself; written only through the app
+    // (today's record, mirroring the statuses) or by the Admin SDK (daily reset). Never edited or deleted by clients.
+    match /employees/{empId}/attendance/{day} {
+      allow read:   if isManager() || ownsEmployee(empId);
+      allow create, update: if (isManager() || ownsEmployee(empId)) && attendanceValid(empId, day);
+      allow delete: if false;
     }
 
     match /buses/{busId} {

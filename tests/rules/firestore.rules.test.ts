@@ -14,6 +14,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -45,7 +46,7 @@ afterAll(async () => {
 const stamp = new Date('2026-01-01T00:00:00Z');
 
 /** Two buses (capacity 2), three employees (EMP1 + EMP2 on bus1, EMP3 on bus2), a manager and an admin. */
-async function seed(overrides: { bus1GoingCount?: number } = {}) {
+async function seed(overrides: { bus1GoingCount?: number; emp2Tally?: number } = {}) {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore() as unknown as Firestore;
@@ -60,7 +61,7 @@ async function seed(overrides: { bus1GoingCount?: number } = {}) {
         createdAt: stamp,
         updatedAt: stamp,
       });
-    const employee = (id: string, busId: string, going: 'in' | 'out') =>
+    const employee = (id: string, busId: string, going: 'in' | 'out', tally = going === 'in' ? 1 : 0) =>
       setDoc(doc(db, 'employees', id), {
         employeeId: id,
         name: `Name ${id}`,
@@ -68,7 +69,7 @@ async function seed(overrides: { bus1GoingCount?: number } = {}) {
         busId,
         goingStatus: going,
         returningStatus: 'out',
-        goingInCount: going === 'in' ? 1 : 0,
+        goingInCount: tally,
         returningInCount: 0,
         createdAt: stamp,
         updatedAt: stamp,
@@ -77,7 +78,7 @@ async function seed(overrides: { bus1GoingCount?: number } = {}) {
     await bus('bus1', overrides.bus1GoingCount ?? 1);
     await bus('bus2', 0);
     await employee('EMP1', 'bus1', 'out');
-    await employee('EMP2', 'bus1', 'in');
+    await employee('EMP2', 'bus1', 'in', overrides.emp2Tally);
     await employee('EMP3', 'bus2', 'out');
 
     await setDoc(doc(db, 'users', 'u-emp1'), { role: 'employee', employeeDocId: 'EMP1' });
@@ -267,5 +268,96 @@ describe('a trip belongs to today (Cairo)', () => {
     await assertSucceeds(setDoc(doc(as('u-mgr'), 'busTrips', `bus1_${today}_going`), managerTrip(today)));
     const other = dayOffset(-3);
     await assertFails(setDoc(doc(as('u-mgr'), 'busTrips', `bus1_${other}_going`), managerTrip(other)));
+  });
+});
+
+describe('the IN tally counts DAYS', () => {
+  const goOut = (db: Firestore, tally: number) => {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP2'), {
+      goingStatus: 'out',
+      goingInCount: tally,
+      updatedAt: serverTimestamp(),
+    });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: 0, updatedAt: serverTimestamp() });
+    return batch.commit();
+  };
+
+  it('IN → OUT takes the day back (tally - 1)', async () => {
+    await assertSucceeds(goOut(as('u-emp2'), 0));
+  });
+
+  it('…never below zero (a main employee whose default IN day was not counted yet)', async () => {
+    await seed({ emp2Tally: 0 });
+    await assertSucceeds(goOut(as('u-emp2'), 0));
+  });
+
+  it('…and not to an arbitrary number', async () => {
+    await assertFails(goOut(as('u-emp2'), 7));
+  });
+
+  it('app versions that are still open on some phones (tally unchanged on IN → OUT) keep working', async () => {
+    await assertSucceeds(goOut(as('u-emp2'), 1));
+  });
+
+  it('OUT → IN adds exactly one day, never two', async () => {
+    const db = as('u-emp1');
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP1'), { goingStatus: 'in', goingInCount: 2, updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: 2, updatedAt: serverTimestamp() });
+    await assertFails(batch.commit());
+  });
+});
+
+describe('the daily IN record (employees/{id}/attendance/{day})', () => {
+  const today = todayKey();
+  const record = (going: 'in' | 'out', returning: 'in' | 'out', date = today) => ({
+    date,
+    goingStatus: going,
+    returningStatus: returning,
+    updatedAt: serverTimestamp(),
+  });
+  const at = (db: Firestore, empId: string, day = today) => doc(db, 'employees', empId, 'attendance', day);
+
+  it('an employee records today with exactly her current statuses (EMP1 is out / out)', async () => {
+    await assertSucceeds(setDoc(at(as('u-emp1'), 'EMP1'), record('out', 'out')));
+    // and may update it later (merge keeps the same four fields)
+    await assertSucceeds(setDoc(at(as('u-emp1'), 'EMP1'), record('out', 'out'), { merge: true }));
+  });
+
+  it('…but cannot claim a status she does not have', async () => {
+    await assertFails(setDoc(at(as('u-emp1'), 'EMP1'), record('in', 'out')));
+  });
+
+  it('…nor write another day, nor extra fields', async () => {
+    await assertFails(setDoc(at(as('u-emp1'), 'EMP1', '2020-01-01'), record('out', 'out', '2020-01-01')));
+    await assertFails(setDoc(at(as('u-emp1'), 'EMP1'), { ...record('out', 'out'), note: 'hi' }));
+    await assertFails(setDoc(at(as('u-emp1'), 'EMP1'), { ...record('out', 'out'), date: '2020-01-01' }));
+  });
+
+  it("…nor write a colleague's record", async () => {
+    await assertFails(setDoc(at(as('u-emp1'), 'EMP2'), record('in', 'out')));
+  });
+
+  it("a manager can write any employee's record (managers change statuses too)", async () => {
+    await assertSucceeds(setDoc(at(as('u-mgr'), 'EMP2'), record('in', 'out')));
+  });
+
+  it('read: the employee herself and managers – nobody else, not even the same bus', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(at(ctx.firestore() as unknown as Firestore, 'EMP1'), record('out', 'out'));
+    });
+    await assertSucceeds(getDoc(at(as('u-emp1'), 'EMP1')));
+    await assertSucceeds(getDocs(collection(as('u-mgr'), 'employees', 'EMP1', 'attendance')));
+    await assertFails(getDoc(at(as('u-emp2'), 'EMP1')));
+    await assertFails(getDoc(at(as('u-emp3'), 'EMP1')));
+  });
+
+  it('nobody deletes or rewrites history through the app – not even an admin', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(at(ctx.firestore() as unknown as Firestore, 'EMP1'), record('out', 'out'));
+    });
+    await assertFails(deleteDoc(at(as('u-adm'), 'EMP1')));
+    await assertFails(deleteDoc(at(as('u-emp1'), 'EMP1')));
   });
 });

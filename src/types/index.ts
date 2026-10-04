@@ -24,10 +24,26 @@ export interface Employee {
   busId: string;
   goingStatus: EmployeeStatus;
   returningStatus: EmployeeStatus;
-  /** How many times the employee switched to IN for Going / Returning (lifetime tally). */
+  /**
+   * How many DAYS the employee was IN for Going / Returning (lifetime tally). A day counts once, however many
+   * times the status was toggled; main employees start every day IN, so they count from midnight.
+   */
   goingInCount: number;
   returningInCount: number;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
+ * employees/{employeeId}/attendance/{yyyy-mm-dd} – the daily IN record: one document per person per Cairo day,
+ * holding the statuses the person ended (or is in) that day with.
+ */
+export interface AttendanceDay {
+  /** yyyy-mm-dd – also the document id. */
+  id: string;
+  date: string;
+  goingStatus: EmployeeStatus;
+  returningStatus: EmployeeStatus;
   updatedAt: Timestamp;
 }
 

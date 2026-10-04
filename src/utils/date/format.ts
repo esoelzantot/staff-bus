@@ -46,6 +46,11 @@ export function formatDate(value: TimeInput | string | null | undefined): string
     : toDate(value).toLocaleDateString('en-GB', { ...options, timeZone: APP_TIME_ZONE });
 }
 
+/** Short English weekday of a yyyy-mm-dd key, e.g. "Sat". */
+export function formatWeekday(key: string): string {
+  return dayKeyToDate(key).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+}
+
 /** e.g. "الأربعاء، 30 سبتمبر". Latin digits, to match the rest of the UI (1 / 13). */
 export function formatDayLabel(value: Date | string = new Date()): string {
   const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' };

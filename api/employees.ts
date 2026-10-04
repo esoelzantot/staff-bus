@@ -16,7 +16,7 @@
  *   VITE_EMPLOYEE_EMAIL_DOMAIN        must match the value the accounts were created with (also used by /api/login)
  */
 import { FieldValue } from 'firebase-admin/firestore';
-import { employeeEmail, getAdmin, HttpError, ID_PATTERN, randomPassword, type Admin } from './_lib/core.js';
+import { cairoDay, employeeEmail, getAdmin, HttpError, ID_PATTERN, randomPassword, type Admin } from './_lib/core.js';
 
 export type { Admin };
 
@@ -89,10 +89,13 @@ async function requireManager(a: Admin, authorization: string | undefined): Prom
 }
 
 // ── Firestore + login-account helpers ──────────────────────────────────────────────────────────
-/** Deletes the employee document and keeps the bus counters / shared location consistent. */
+/**
+ * Deletes the employee document (and their daily IN record) and keeps the bus counters / shared location
+ * consistent.
+ */
 async function removeEmployeeRecord(a: Admin, id: string): Promise<boolean> {
   const empRef = a.db.collection('employees').doc(id);
-  return a.db.runTransaction(async (tx) => {
+  const removed = await a.db.runTransaction(async (tx) => {
     const empSnap = await tx.get(empRef);
     if (!empSnap.exists) return false;
     const emp = empSnap.data() as StoredEmployee;
@@ -119,6 +122,9 @@ async function removeEmployeeRecord(a: Admin, id: string): Promise<boolean> {
     }
     return true;
   });
+  // Sub-collections are not deleted with their parent document.
+  if (removed) await a.db.recursiveDelete(empRef);
+  return removed;
 }
 
 /**
@@ -183,6 +189,8 @@ async function createEmployee(a: Admin, body: Body): Promise<void> {
     }
 
     const initial = type === 'main' ? 'in' : 'out';
+    // A main employee starts IN, so today already counts as one IN day (like at the nightly reset).
+    const todayTally = type === 'main' ? 1 : 0;
     tx.create(empRef, {
       employeeId: id,
       name,
@@ -190,9 +198,17 @@ async function createEmployee(a: Admin, body: Body): Promise<void> {
       busId,
       goingStatus: initial,
       returningStatus: initial,
-      goingInCount: 0,
-      returningInCount: 0,
+      goingInCount: todayTally,
+      returningInCount: todayTally,
       createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    // …and today's daily IN record exists from the first minute.
+    const day = cairoDay();
+    tx.create(empRef.collection('attendance').doc(day), {
+      date: day,
+      goingStatus: initial,
+      returningStatus: initial,
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (type === 'main') {

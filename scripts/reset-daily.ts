@@ -5,32 +5,23 @@
  *   npm run reset-daily -- --force     # run now (ignores the time window and the "already done today" check)
  *
  * New-day state of every bus:
- *   - MAIN employees      → IN for Going and Returning
- *   - WAITING employees   → OUT   (otherwise main + waiting could exceed the capacity)
- *   - bus counters        → = number of main employees
+ *   - MAIN employees      → IN for Going and Returning, and today counts as one IN day for both (tally +1)
+ *   - WAITING employees   → OUT   (otherwise main + waiting could exceed the capacity), tally unchanged
+ *   - daily IN record     → employees/{id}/attendance/{today} created for EVERY employee with those statuses
+ *   - bus counters        → = number of employees that are IN
  *   - active direction    → Going (so the morning "وصلنا" / tracking are available)
  *   - shared location     → stopped
- * The IN tallies (goingInCount / returningInCount) are NOT touched.
- * Idempotent: meta/dailyReset remembers the last Cairo day that was reset.
+ * Idempotent: an employee that already has today's record is left untouched (so a re-run, or a late run after
+ * somebody already toggled, can never count a day twice), and meta/dailyReset remembers the last Cairo day done.
  */
-import type { WriteBatch } from 'firebase-admin/firestore';
 import { FieldValue, adminDb, projectId } from './lib/admin';
+import { commitUnits, loadEmployeeStates, seedUnit, type Op } from './lib/attendance';
 import { RESET_WINDOW_END_HOUR, cairoNow } from './lib/cairoTime';
-import { planBusReset, type EmployeeState } from './lib/dailyReset';
+import { planBusReset } from './lib/dailyReset';
 
 const args = process.argv.slice(2);
 const force = args.includes('--force');
 const dryRun = args.includes('--dry-run');
-
-type Op = (batch: WriteBatch) => void;
-
-async function commit(ops: Op[]) {
-  for (let i = 0; i < ops.length; i += 400) {
-    const batch = adminDb.batch();
-    ops.slice(i, i + 400).forEach((op) => op(batch));
-    await batch.commit();
-  }
-}
 
 async function main() {
   const { date: today, hour } = cairoNow();
@@ -42,55 +33,50 @@ async function main() {
   }
 
   console.log(`Project ${projectId} – resetting for ${today}${dryRun ? ' (DRY RUN)' : ''}`);
-  const ops: Op[] = [];
+  const units: Op[][] = [];
   let failed = false;
-  let changed = 0;
+  let seeded = 0;
 
   for (const busDoc of (await adminDb.collection('buses').get()).docs) {
-    const employees = (await adminDb.collection('employees').where('busId', '==', busDoc.id).get()).docs.map(
-      (d) => ({ id: d.id, ...d.data() }) as EmployeeState,
-    );
-    const plan = planBusReset(busDoc.data().capacity as number, employees);
+    const docs = (await adminDb.collection('employees').where('busId', '==', busDoc.id).get()).docs;
+    const plan = planBusReset(busDoc.data().capacity as number, await loadEmployeeStates(docs, today));
     if ('error' in plan) {
       console.error(`Bus ${busDoc.id}: ${plan.error} – skipped.`);
       failed = true;
       continue;
     }
-    console.log(`Bus ${busDoc.id}: ${plan.updates.length} employee(s) to reset, counters → ${plan.count}/${plan.count}`);
-    changed += plan.updates.length;
+    const todo = plan.employees.filter((p) => p.seed);
+    console.log(
+      `Bus ${busDoc.id}: ${todo.length}/${plan.employees.length} employee(s) start the new day, counters → ${plan.goingCount}/${plan.returningCount}`,
+    );
+    seeded += todo.length;
+    todo.forEach((p) => units.push(seedUnit(p, today)));
 
-    for (const u of plan.updates) {
-      ops.push((b) =>
-        b.update(adminDb.collection('employees').doc(u.id), {
-          goingStatus: u.status,
-          returningStatus: u.status,
+    const busOps: Op[] = [
+      (b) =>
+        b.update(busDoc.ref, {
+          goingCount: plan.goingCount,
+          returningCount: plan.returningCount,
+          activeTripType: 'going',
           updatedAt: FieldValue.serverTimestamp(),
         }),
-      );
-    }
-    ops.push((b) =>
-      b.update(busDoc.ref, {
-        goingCount: plan.count,
-        returningCount: plan.count,
-        activeTripType: 'going',
-        updatedAt: FieldValue.serverTimestamp(),
-      }),
-    );
+    ];
     const loc = await adminDb.collection('busLocations').doc(busDoc.id).get();
     if (loc.exists && loc.data()?.active) {
-      ops.push((b) => b.update(loc.ref, { active: false, updatedAt: FieldValue.serverTimestamp() }));
+      busOps.push((b) => b.update(loc.ref, { active: false, updatedAt: FieldValue.serverTimestamp() }));
     }
+    units.push(busOps);
   }
 
   if (dryRun) return console.log('Dry run – nothing written.');
 
-  await commit(ops);
+  await commitUnits(units);
   if (failed) {
     console.error('Some buses were skipped; not marking the day as done so the next run retries.');
     process.exit(1);
   }
-  await metaRef.set({ lastResetDate: today, resetAt: FieldValue.serverTimestamp(), employeesChanged: changed });
-  console.log(`Done. ${changed} employee(s) reset.`);
+  await metaRef.set({ lastResetDate: today, resetAt: FieldValue.serverTimestamp(), employeesChanged: seeded });
+  console.log(`Done. ${seeded} employee(s) started ${today}.`);
 }
 
 main().catch((err) => {

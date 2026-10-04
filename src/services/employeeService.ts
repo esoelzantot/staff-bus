@@ -2,7 +2,9 @@ import { onSnapshot, query, runTransaction, serverTimestamp, where } from 'fireb
 import { busRef, db, employeeRef, employeesCollection, mapBus, mapEmployee } from '../firebase';
 import type { EmployeeStatus, StatusField } from '../types';
 import type { Employee } from '../types';
+import { todayKey } from '../utils/date/format';
 import { makeError, toAppError } from '../utils/errors';
+import { recordAttendance } from './attendanceService';
 
 export type Unsubscribe = () => void;
 type OnError = (error: unknown) => void;
@@ -12,11 +14,7 @@ export function subscribeEmployee(
   onData: (employee: Employee | null) => void,
   onError: OnError,
 ): Unsubscribe {
-  return onSnapshot(
-    employeeRef(employeeId),
-    (snap) => onData(snap.exists() ? mapEmployee(snap) : null),
-    onError,
-  );
+  return onSnapshot(employeeRef(employeeId), (snap) => onData(snap.exists() ? mapEmployee(snap) : null), onError);
 }
 
 export function subscribeBusEmployees(
@@ -46,12 +44,13 @@ const TALLY_FIELD = { goingStatus: 'goingInCount', returningStatus: 'returningIn
  *  - joining a full bus is rejected atomically (and again by the security rules),
  *  - concurrent updates are retried by Firestore instead of overwriting each other.
  * Only the requested field (and its IN tally) is written, so Going never touches Returning and vice versa.
+ *
+ * The IN tally counts DAYS: OUT → IN adds one, IN → OUT takes it back (never below zero), so switching
+ * IN / OUT / IN on the same day is still one day. Afterwards today's IN record (employees/{id}/attendance) is
+ * brought up to date – separately, so a problem with the log can never block an IN / OUT change.
  */
-export async function setEmployeeStatus(
-  employeeId: string,
-  field: StatusField,
-  value: EmployeeStatus,
-): Promise<void> {
+export async function setEmployeeStatus(employeeId: string, field: StatusField, value: EmployeeStatus): Promise<void> {
+  let saved = null as { goingStatus: EmployeeStatus; returningStatus: EmployeeStatus } | null;
   try {
     await runTransaction(db, async (tx) => {
       const empSnap = await tx.get(employeeRef(employeeId));
@@ -66,25 +65,29 @@ export async function setEmployeeStatus(
       const counter = COUNTER_FIELD[field];
       const delta = value === 'in' ? 1 : -1;
       if (delta > 0 && bus[counter] >= bus.capacity) {
-        throw makeError(
-          'bus-full',
-          `الأتوبيس ممتلئ حالياً. الحد الأقصى: ${bus.capacity} راكب.`,
-        );
+        throw makeError('bus-full', `الأتوبيس ممتلئ حالياً. الحد الأقصى: ${bus.capacity} راكب.`);
       }
 
       const tally = TALLY_FIELD[field];
       tx.update(employeeRef(employeeId), {
         [field]: value,
-        // every OUT → IN switch adds one to this employee's tally for that direction
-        ...(value === 'in' ? { [tally]: employee[tally] + 1 } : {}),
+        // days IN: OUT → IN adds one, IN → OUT takes it back
+        [tally]: Math.max(0, employee[tally] + delta),
         updatedAt: serverTimestamp(),
       });
       tx.update(busRef(employee.busId), {
         [counter]: Math.max(0, bus[counter] + delta),
         updatedAt: serverTimestamp(),
       });
+      saved = {
+        goingStatus: field === 'goingStatus' ? value : employee.goingStatus,
+        returningStatus: field === 'returningStatus' ? value : employee.returningStatus,
+      };
     });
   } catch (err) {
     throw toAppError(err);
   }
+
+  // Not awaited on purpose: the button must not wait for the log (see recordAttendance).
+  if (saved) void recordAttendance(employeeId, todayKey(), saved);
 }

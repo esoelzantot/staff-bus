@@ -1,3 +1,4 @@
+import { FiDownload } from 'react-icons/fi';
 import type { Employee, EmployeeStatus, StatusField } from '../../types';
 import { StatusPill } from '../common/StatusPill';
 import { StatusToggle } from '../common/StatusToggle';
@@ -11,9 +12,22 @@ interface Props {
   isMe?: boolean;
   pendingValue?: (employeeId: string, field: StatusField) => EmployeeStatus | null;
   onChange?: (employeeId: string, field: StatusField, value: EmployeeStatus) => void;
+  /** Managers only: downloads this employee's daily IN record (Going + Returning) as a PDF. */
+  onExportLog?: (employee: Employee) => void;
+  /** The PDF of this card is being prepared. */
+  exporting?: boolean;
 }
 
-export function EmployeeCard({ employee, size = 'regular', readOnly = false, isMe = false, pendingValue, onChange }: Props) {
+export function EmployeeCard({
+  employee,
+  size = 'regular',
+  readOnly = false,
+  isMe = false,
+  pendingValue,
+  onChange,
+  onExportLog,
+  exporting = false,
+}: Props) {
   return (
     <article className={`card card--${employee.type} card--${size}${isMe ? ' card--me' : ''}`}>
       <header className="card__head">
@@ -48,6 +62,19 @@ export function EmployeeCard({ employee, size = 'regular', readOnly = false, isM
             onChange={(v) => onChange(employee.id, 'returningStatus', v)}
           />
         </div>
+      )}
+
+      {onExportLog && (
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          disabled={exporting}
+          onClick={() => onExportLog(employee)}
+          aria-label={`تحميل سجل IN اليومي للموظف ${employee.name} (PDF)`}
+        >
+          {exporting ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiDownload aria-hidden="true" />}
+          {exporting ? 'جارٍ التجهيز…' : 'سجل IN اليومي (PDF)'}
+        </button>
       )}
     </article>
   );

@@ -9,6 +9,7 @@ import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { Spinner } from '../../components/common/Spinner';
 import { useActiveTrip, useBuses, useBusEmployees } from '../../hooks/useBusData';
 import { useStatusUpdater } from '../../hooks/useStatusUpdater';
+import { fetchAttendance } from '../../services/attendanceService';
 import { recordArrival, resetArrival, setActiveTripType } from '../../services/busTripService';
 import type { Employee, StatusField, TripType } from '../../types';
 import { todayKey } from '../../utils/date/format';
@@ -28,6 +29,7 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [tripBusy, setTripBusy] = useState(false);
   const [arrivalBusy, setArrivalBusy] = useState(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   const all = employees.data ?? [];
   const main = useMemo(() => all.filter((e) => e.type === 'main'), [all]);
@@ -71,6 +73,33 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  /** Downloads one employee's daily IN record (every recorded day: Going + Returning) as a PDF. */
+  async function exportAttendance(employee: Employee) {
+    if (!bus || exportingId) return;
+    setExportingId(employee.id);
+    setActionError(null);
+    try {
+      const days = await fetchAttendance(employee.id);
+      if (days.length === 0) {
+        setActionError(`لا يوجد سجل IN لـ ${employee.name} حتى الآن. يبدأ التسجيل من أول تغيير للحالة أو من التصفير الليلي القادم.`);
+        return;
+      }
+      // jsPDF is loaded on demand so it does not slow down the first page load.
+      const { generateAttendancePdf } = await import('../../utils/pdf/generateAttendancePdf');
+      generateAttendancePdf({
+        employeeName: employee.name,
+        employeeType: employee.type,
+        route: bus.route,
+        busNumber: bus.busNumber,
+        days,
+      });
+    } catch (err) {
+      setActionError(toAppError(err, 'pdf').message);
+    } finally {
+      setExportingId(null);
+    }
+  }
+
   if (buses.loading) return <Spinner label="جارٍ تحميل بيانات الأتوبيس…" />;
 
   return (
@@ -103,6 +132,8 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
                 employees={main}
                 pendingValue={updater.pendingValue}
                 onChange={updater.update}
+                onExportLog={(e) => void exportAttendance(e)}
+                exportingId={exportingId}
               />
               <EmployeeList
                 title="الانتظار"
@@ -110,6 +141,8 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
                 employees={waiting}
                 pendingValue={updater.pendingValue}
                 onChange={updater.update}
+                onExportLog={(e) => void exportAttendance(e)}
+                exportingId={exportingId}
               />
               </div>
               <Summary tripType={tripType} capacity={bus.capacity} passengers={passengers} onExport={() => void exportPdf()} />
