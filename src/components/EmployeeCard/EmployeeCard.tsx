@@ -12,7 +12,7 @@ interface Props {
   isMe?: boolean;
   pendingValue?: (employeeId: string, field: StatusField) => EmployeeStatus | null;
   onChange?: (employeeId: string, field: StatusField, value: EmployeeStatus) => void;
-  /** Managers only: downloads this employee's daily IN record (Going + Returning) as a PDF. */
+  /** Managers only: opens this employee's monthly IN record (every day, Going + Returning) for a PDF download. */
   onExportLog?: (employee: Employee) => void;
   /** The PDF of this card is being prepared. */
   exporting?: boolean;
@@ -70,10 +70,10 @@ export function EmployeeCard({
           className="btn btn--ghost btn--sm"
           disabled={exporting}
           onClick={() => onExportLog(employee)}
-          aria-label={`تحميل سجل IN اليومي للموظف ${employee.name} (PDF)`}
+          aria-label={`السجل الشهري للموظف ${employee.name} (PDF)`}
         >
           {exporting ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiDownload aria-hidden="true" />}
-          {exporting ? 'جارٍ التجهيز…' : 'سجل IN اليومي (PDF)'}
+          {exporting ? 'جارٍ التجهيز…' : 'السجل الشهري (PDF)'}
         </button>
       )}
     </article>

@@ -10,7 +10,7 @@ interface Props {
   meId?: string;
   pendingValue?: (employeeId: string, field: StatusField) => EmployeeStatus | null;
   onChange?: (employeeId: string, field: StatusField, value: EmployeeStatus) => void;
-  /** Managers only: shows a "daily IN record (PDF)" button on every card. */
+  /** Managers only: shows a "monthly IN record (PDF)" button on every card. */
   onExportLog?: (employee: Employee) => void;
   /** Id of the employee whose PDF is being prepared (disables that card's button). */
   exportingId?: string | null;

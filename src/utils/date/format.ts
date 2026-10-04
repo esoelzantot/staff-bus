@@ -46,6 +46,16 @@ export function formatDate(value: TimeInput | string | null | undefined): string
     : toDate(value).toLocaleDateString('en-GB', { ...options, timeZone: APP_TIME_ZONE });
 }
 
+/** "October 2026" (or "أكتوبر 2026" with locale "ar-EG-u-nu-latn") for a yyyy-mm key. */
+export function formatMonth(month: string, locale = 'en-GB'): string {
+  const [year, number] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, number - 1, 1, 12)).toLocaleDateString(locale, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 /** Short English weekday of a yyyy-mm-dd key, e.g. "Sat". */
 export function formatWeekday(key: string): string {
   return dayKeyToDate(key).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });

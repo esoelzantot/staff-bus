@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrivalSection } from '../../components/ArrivalSection/ArrivalSection';
+import { AttendanceExportDialog } from '../../components/AttendanceExportDialog/AttendanceExportDialog';
 import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
 import { EmployeeManager } from '../../components/EmployeeManager/EmployeeManager';
 import { Header } from '../../components/Header/Header';
@@ -11,7 +12,7 @@ import { useActiveTrip, useBuses, useBusEmployees } from '../../hooks/useBusData
 import { useStatusUpdater } from '../../hooks/useStatusUpdater';
 import { fetchAttendance } from '../../services/attendanceService';
 import { recordArrival, resetArrival, setActiveTripType } from '../../services/busTripService';
-import type { Employee, StatusField, TripType } from '../../types';
+import type { AttendanceDay, Employee, StatusField, TripType } from '../../types';
 import { todayKey } from '../../utils/date/format';
 import { passengersFor } from '../../utils/passengers';
 import { toAppError } from '../../utils/errors';
@@ -29,7 +30,10 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [tripBusy, setTripBusy] = useState(false);
   const [arrivalBusy, setArrivalBusy] = useState(false);
+  /** The employee whose card button was pressed (while the record loads, then while the PDF is built). */
   const [exportingId, setExportingId] = useState<string | null>(null);
+  /** The loaded record: opens the month picker. */
+  const [monthly, setMonthly] = useState<{ employee: Employee; days: AttendanceDay[] } | null>(null);
 
   const all = employees.data ?? [];
   const main = useMemo(() => all.filter((e) => e.type === 'main'), [all]);
@@ -73,27 +77,45 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  /** Downloads one employee's daily IN record (every recorded day: Going + Returning) as a PDF. */
-  async function exportAttendance(employee: Employee) {
-    if (!bus || exportingId) return;
+  /** Loads one employee's daily records and opens the month picker. */
+  async function openMonthly(employee: Employee) {
+    if (exportingId) return;
     setExportingId(employee.id);
     setActionError(null);
     try {
       const days = await fetchAttendance(employee.id);
       if (days.length === 0) {
-        setActionError(`لا يوجد سجل IN لـ ${employee.name} حتى الآن. يبدأ التسجيل من أول تغيير للحالة أو من التصفير الليلي القادم.`);
+        setActionError(
+          `لا يوجد سجل IN لـ ${employee.name} حتى الآن. يبدأ التسجيل من أول تغيير للحالة أو من التصفير الليلي القادم.`,
+        );
         return;
       }
+      setMonthly({ employee, days });
+    } catch (err) {
+      setActionError(toAppError(err).message);
+    } finally {
+      setExportingId(null);
+    }
+  }
+
+  /** Downloads the chosen month of the open record (every day of the month, Going + Returning) as a PDF. */
+  async function downloadMonth(month: string) {
+    if (!bus || !monthly || exportingId) return;
+    setExportingId(monthly.employee.id);
+    try {
       // jsPDF is loaded on demand so it does not slow down the first page load.
       const { generateAttendancePdf } = await import('../../utils/pdf/generateAttendancePdf');
       generateAttendancePdf({
-        employeeName: employee.name,
-        employeeType: employee.type,
+        employeeName: monthly.employee.name,
+        employeeType: monthly.employee.type,
         route: bus.route,
         busNumber: bus.busNumber,
-        days,
+        month,
+        days: monthly.days,
       });
+      setMonthly(null);
     } catch (err) {
+      setMonthly(null);
       setActionError(toAppError(err, 'pdf').message);
     } finally {
       setExportingId(null);
@@ -126,26 +148,31 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
           ) : (
             <>
               <div className="twoCol">
-              <EmployeeList
-                title="الأساسي"
-                variant="main"
-                employees={main}
-                pendingValue={updater.pendingValue}
-                onChange={updater.update}
-                onExportLog={(e) => void exportAttendance(e)}
-                exportingId={exportingId}
-              />
-              <EmployeeList
-                title="الانتظار"
-                variant="waiting"
-                employees={waiting}
-                pendingValue={updater.pendingValue}
-                onChange={updater.update}
-                onExportLog={(e) => void exportAttendance(e)}
-                exportingId={exportingId}
-              />
+                <EmployeeList
+                  title="الأساسي"
+                  variant="main"
+                  employees={main}
+                  pendingValue={updater.pendingValue}
+                  onChange={updater.update}
+                  onExportLog={(e) => void openMonthly(e)}
+                  exportingId={exportingId}
+                />
+                <EmployeeList
+                  title="الانتظار"
+                  variant="waiting"
+                  employees={waiting}
+                  pendingValue={updater.pendingValue}
+                  onChange={updater.update}
+                  onExportLog={(e) => void openMonthly(e)}
+                  exportingId={exportingId}
+                />
               </div>
-              <Summary tripType={tripType} capacity={bus.capacity} passengers={passengers} onExport={() => void exportPdf()} />
+              <Summary
+                tripType={tripType}
+                capacity={bus.capacity}
+                passengers={passengers}
+                onExport={() => void exportPdf()}
+              />
             </>
           )}
 
@@ -158,9 +185,19 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
           />
 
           <EmployeeManager employees={all} bus={bus} buses={list} />
+
+          {monthly && (
+            <AttendanceExportDialog
+              employeeName={monthly.employee.name}
+              days={monthly.days}
+              today={todayKey()}
+              busy={exportingId === monthly.employee.id}
+              onExport={(month) => void downloadMonth(month)}
+              onClose={() => setMonthly(null)}
+            />
+          )}
         </>
       )}
     </div>
   );
 }
-
