@@ -1,37 +1,101 @@
 name: Daily reset
 
-# Main employees back to IN, waiting back to OUT, direction back to Going.
-# GitHub cron is UTC-only: 21:10 / 22:10 / 23:10 UTC covers ~00:10 Cairo in both summer (UTC+3) and winter (UTC+2).
-# The script only acts between 00:00-05:59 Cairo time and only once per day, so the extra runs are harmless retries.
+# Every night shortly after 00:00 Cairo (scripts/lib/resetDay.ts):
+#   main employees → IN (Going + Returning) and today counted as an IN day · waiting employees → OUT
+#   a daily IN record for everyone · bus counters recomputed · direction → Going · shared location stopped
+#
+# GitHub starts scheduled runs late (often 1–3 hours) and sometimes drops them, so the workflow is scheduled every
+# 30 minutes through the night. The script works only between 00:00 and 05:59 Cairo and only ONCE per day
+# (meta/dailyReset), so the extra runs end within seconds. Cron is UTC: 21:00–02:59 UTC = 00:00–05:59 Cairo in
+# summer (UTC+3); in winter (UTC+2) the first useful run is the 22:07 UTC one.
 on:
   schedule:
-    - cron: '10 21,22,23 * * *'
+    - cron: '7,37 21-23 * * *'
+    - cron: '7,37 0-2 * * *'
   workflow_dispatch:
     inputs:
       force:
         description: 'Run now, ignoring the time window and the "already done today" check'
         type: boolean
         default: false
+      dry_run:
+        description: 'Dry run: show what would change, write nothing'
+        type: boolean
+        default: false
+
+# Never two resets at the same time (a late scheduled run overlapping a manual one).
+concurrency:
+  group: daily-reset
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   reset:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      # Set the repository variable FIREBASE_PROJECT_ID to use another project (e.g. a staging copy).
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'staff-bus-e5651' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Cheap gate before installing anything: outside 00:00–05:59 Cairo a scheduled run has nothing to do.
+      - name: Check the time window
+        id: window
+        env:
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          hour=$(TZ=Africa/Cairo date +%-H)
+          if [ "$FORCE" != "true" ] && [ "$hour" -ge 6 ]; then
+            echo "Cairo time is $(TZ=Africa/Cairo date +%H:%M) – outside the 00:00–05:59 window, nothing to do."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fails with a clear message instead of "exit code 1" when the secret is missing or broken.
+      - name: Check the FIREBASE_SERVICE_ACCOUNT secret
+        if: steps.window.outputs.run == 'true'
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node -e '
+            const fail = (m) => { console.log(`::error title=FIREBASE_SERVICE_ACCOUNT::${m}`); process.exit(1); };
+            const raw = (process.env.SA_JSON || "").trim();
+            if (!raw) fail("The secret is missing or empty. Repository → Settings → Secrets and variables → Actions → New repository secret: name FIREBASE_SERVICE_ACCOUNT, value = the WHOLE service-account JSON file.");
+            let key;
+            try { key = JSON.parse(raw); } catch { fail("The secret is not valid JSON – usually only part of the key file was pasted. Paste the whole file, from { to }."); }
+            const missing = ["type", "project_id", "private_key", "client_email"].filter((k) => typeof key[k] !== "string");
+            if (key.type !== "service_account" || missing.length) fail(`The secret is not a service-account key (missing: ${missing.join(", ") || "type=service_account"}).`);
+            const expected = process.env.VITE_FIREBASE_PROJECT_ID;
+            if (key.project_id !== expected) fail(`The key belongs to project "${key.project_id}", but the reset targets "${expected}".`);
+            console.log(`Service-account key OK (${key.client_email}).`);
+          '
+
+      - uses: actions/checkout@v5
+        if: steps.window.outputs.run == 'true'
+
+      - uses: actions/setup-node@v5
+        if: steps.window.outputs.run == 'true'
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - name: Write service account key
+
+      - name: Install
+        if: steps.window.outputs.run == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Reset the day
+        if: steps.window.outputs.run == 'true'
         env:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
-      - name: Reset statuses
-        env:
-          VITE_FIREBASE_PROJECT_ID: staff-bus-e5651
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
           FORCE: ${{ github.event.inputs.force }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          if [ "$FORCE" = "true" ]; then npx tsx scripts/reset-daily.ts --force; else npx tsx scripts/reset-daily.ts; fi
+          key="$RUNNER_TEMP/sa.json"
+          (umask 077 && printf '%s' "$SA_JSON" > "$key")
+          trap 'rm -f "$key"' EXIT
+          args=()
+          [ "$FORCE" = "true" ] && args+=(--force)
+          [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
+          GOOGLE_APPLICATION_CREDENTIALS="$key" npx tsx scripts/reset-daily.ts "${args[@]}"

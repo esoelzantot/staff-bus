@@ -51,7 +51,7 @@ async function requestToken(id: string, pin: string | undefined): Promise<string
   if (res.ok && data?.token) return data.token;
 
   if (res.status === 404 && !data) {
-    throw makeError('unknown', 'خدمة تسجيل الدخول غير متاحة في هذه البيئة (تعمل على Vercel فقط – محلياً استخدم: npx vercel dev).');
+    throw makeError('unknown', 'خدمة تسجيل الدخول غير متاحة في هذه البيئة (تعمل على Vercel، ومحلياً من خلال npm run dev).');
   }
   const code = LOGIN_ERROR_CODES.find((c) => c === data?.error);
   throw code ? makeError(code) : makeError('unknown', res.status >= 500 ? data?.message : undefined);

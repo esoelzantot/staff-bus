@@ -87,7 +87,8 @@ The app itself is deployed by Vercel (push to the repo). Firebase Hosting has no
 
 ```bash
 npm test             # unit tests: sign-in logic (PIN, lockout, IP limit), dates, daily reset, CSV import, …
-npm run test:rules   # Firestore rules, against the emulator (needs `firebase-tools` and Java)
+npm run test:rules   # Firestore rules + the daily reset, against the emulator (needs `firebase-tools` and Java 21+)
+# with Java 17: npx firebase-tools@13 emulators:exec --only firestore --project demo-staff-bus "npx vitest run --config vitest.rules.config.ts"
 ```
 
 ## Security model (read this)
@@ -110,6 +111,15 @@ Do the steps in this order so nobody is locked out in between:
 5. Firebase console → Authentication → Sign-in method → turn **Email/Password OFF**.
 6. Re-deploy the rules: `npm run rules:deploy`.
 7. Delete `VITE_AUTH_SUFFIX` from Vercel / `.env`.
+
+## Upgrading to the strict counters / tally rules
+
+This version tightens `firestore.rules`: the IN tally must go down again on IN → OUT (no more "legacy" branch), and
+a manager can only move a bus counter together with an employee's status change (the app names that employee in
+`buses/{id}.statusChangeOf`). Old app tabs and the old rules do not fit the new ones, so:
+
+1. Push the app (Vercel) and run `npm run rules:deploy` **right after each other**, ideally at night.
+2. Ask everyone to refresh the page (or close and reopen it). An old tab gets "ليس لديك صلاحية" on IN / OUT until then.
 
 ## Structure
 
@@ -135,5 +145,10 @@ tests          rules/ (Firestore rules, emulator)       *.test.ts next to the co
 * **وصلنا (arrival):** any employee on the bus can press it (Employee dashboard footer). It exists for the **going direction only**: the button shows while the bus' active direction is *going* and is stored on today's going-trip `busTrips` document (server time + who pressed). It appears live for everyone on the bus and on the manager's arrival section. The first press wins; the employee who pressed it can undo it with the X on the card (and a manager/admin can always reset it). A new day opens a new trip, so the button comes back. **Re-deploy the rules** (`npm run rules:deploy`) after pulling this change.
 * **تتبع الأتوبيس (live tracking):** the first employee on the bus taps "ابدأ مشاركة موقع الأتوبيس"; her phone's GPS position is written to `busLocations/{busId}` (≈ every 5 s while the bus moves, a heartbeat every 15 s when parked) and every colleague on the bus sees it on a live map (Leaflet + OpenStreetMap) whose marker glides smoothly and which follows the bus (drag the map to look around, 🎯 to resume) and can go full screen with a button that opens Google Maps directions to the bus. Only one sharer at a time; a colleague can take over when the sharer stops or her updates are older than 90 s. Sharing stops automatically when the going trip's arrival is recorded, on logout, or via "إيقاف المشاركة". **Limitation:** this is a web app, so the GPS only reports while the sharer's page is open in the foreground (browsers pause it when the screen locks or the tab is in the background). Re-deploy the rules after pulling this change.
 * **Employee management (manager dashboard → "إدارة الموظفين"):** managers can add, edit (name / type / bus) and delete employees. It runs through the serverless function `api/employees.ts` (Admin SDK), which first verifies the caller's Firebase ID token and that `users/{uid}.role` is manager/admin, so the Firestore rules stay strict. Deleting an employee also deletes the login account and fixes the bus counters; adding a *main* employee needs room on the bus (main employees start IN). Setup on Vercel: add the env var `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON) and redeploy. Locally `npm run dev` serves it too (see below); the service-account key is read from `GOOGLE_APPLICATION_CREDENTIALS` in `.env`. Do not use `vercel dev`: the SPA rewrite in `vercel.json` makes it answer 404 for Vite's own files.
-* **Daily reset:** `.github/workflows/daily-reset.yml` runs `scripts/reset-daily.ts` every night at ~00:10 Cairo time: main employees → IN (Going + Returning) and counted as an IN day, waiting → OUT, a daily IN record created for everyone, bus counters recomputed, active direction → Going, shared location stopped. Setup: add the repo secret `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON). Test with `npm run reset-daily -- --dry-run` or from the Actions tab (Run workflow → force).
+* **Daily reset:** `.github/workflows/daily-reset.yml` runs `scripts/reset-daily.ts` every night after 00:00 Cairo time: main employees → IN (Going + Returning) and counted as an IN day, waiting → OUT (Going + Returning), a daily IN record created for everyone, bus counters recomputed, active direction → Going, shared location stopped. Each bus is reset in one transaction, and an employee that already has today's record is never touched again, so a re-run can never count a day twice.
+  * **Setup:** repository → Settings → Secrets and variables → Actions → secret `FIREBASE_SERVICE_ACCOUNT` = the **whole** service-account JSON file (from `{` to `}`). Update it whenever the key is rotated. Optional repository variable `FIREBASE_PROJECT_ID` (default `staff-bus-e5651`).
+  * **Schedule:** GitHub starts scheduled runs late (often 1–3 h) and sometimes drops them, so the workflow is scheduled every 30 min from 21:07 to 02:37 UTC. Only the first run inside 00:00–05:59 Cairo does the work (`meta/dailyReset` remembers the day); the others end in seconds.
+  * **When it fails** GitHub e-mails you, and the reason is shown as an annotation on the run page (no need to open the log): missing / broken secret, key of another project, a bus with more main employees than seats… The day is then not marked as done, so the next run of the night retries.
+  * **Test:** `npm run reset-daily -- --dry-run`, or Actions tab → Daily reset → Run workflow (tick *dry run*, or *force* to reset now).
+  * GitHub disables scheduled workflows in a repository with no activity (commits) for 60 days – re-enable it on the Actions tab if that happens.
 * `tests/rules` covers the rules that matter most, but it has to be run on a machine with the emulator (`npm run test:rules`) – run it before going live and after every rules change.

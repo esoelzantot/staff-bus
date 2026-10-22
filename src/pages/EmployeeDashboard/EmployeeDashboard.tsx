@@ -34,7 +34,8 @@ export function EmployeeDashboard({ employeeId, onLogout }: Props) {
   const [arriveError, setArriveError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const all = people.data ?? [];
+  // Memoised so the lists below are only recomputed when the data really changes.
+  const all = useMemo(() => people.data ?? [], [people.data]);
   const main = useMemo(() => all.filter((e) => e.type === 'main'), [all]);
   const waiting = useMemo(() => all.filter((e) => e.type === 'waiting'), [all]);
   const going = useMemo(() => passengersFor(all, 'goingStatus'), [all]);

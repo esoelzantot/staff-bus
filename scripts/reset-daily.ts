@@ -1,85 +1,88 @@
 /**
- * Daily reset (Admin SDK). Runs automatically from .github/workflows/daily-reset.yml at ~00:10 Cairo time.
+ * Daily reset (Admin SDK). Runs automatically from .github/workflows/daily-reset.yml shortly after midnight Cairo.
+ * What it does to each bus: see scripts/lib/resetDay.ts.
  *
  *   npm run reset-daily -- --dry-run   # show what would change, writes nothing
  *   npm run reset-daily -- --force     # run now (ignores the time window and the "already done today" check)
  *
- * New-day state of every bus:
- *   - MAIN employees      → IN for Going and Returning, and today counts as one IN day for both (tally +1)
- *   - WAITING employees   → OUT   (otherwise main + waiting could exceed the capacity), tally unchanged
- *   - daily IN record     → employees/{id}/attendance/{today} created for EVERY employee with those statuses
- *   - bus counters        → = number of employees that are IN
- *   - active direction    → Going (so the morning "وصلنا" / tracking are available)
- *   - shared location     → stopped
- * Idempotent: an employee that already has today's record is left untouched (so a re-run, or a late run after
- * somebody already toggled, can never count a day twice), and meta/dailyReset remembers the last Cairo day done.
+ * The workflow starts it several times a night (GitHub delays or drops scheduled runs); only the first run inside
+ * the 00:00–05:59 Cairo window does the work, and meta/dailyReset remembers the day so the others exit at once.
+ * Exit code 1 = the day is NOT reset (GitHub then e-mails the failure); every reason is printed as an annotation.
  */
-import { FieldValue, adminDb, projectId } from './lib/admin';
-import { commitUnits, loadEmployeeStates, seedUnit, type Op } from './lib/attendance';
+import { annotateError, annotateNotice, summary } from './lib/ghActions';
 import { RESET_WINDOW_END_HOUR, cairoNow } from './lib/cairoTime';
-import { planBusReset } from './lib/dailyReset';
+import { describeError, resetAllBuses } from './lib/resetDay';
 
 const args = process.argv.slice(2);
 const force = args.includes('--force');
 const dryRun = args.includes('--dry-run');
 
-async function main() {
+const TITLE = 'Daily reset';
+
+async function main(): Promise<number> {
   const { date: today, hour } = cairoNow();
+
+  if (!force && hour >= RESET_WINDOW_END_HOUR) {
+    console.log(`Skipped: ${hour}:xx Cairo time is outside the 00:00–05:59 window.`);
+    return 0;
+  }
+
+  // Imported here, not at the top: a broken key / missing setting must end up in the error report below.
+  const { FieldValue, adminDb, projectId } = await import('./lib/admin');
   const metaRef = adminDb.collection('meta').doc('dailyReset');
 
-  if (!force) {
-    if (hour >= RESET_WINDOW_END_HOUR) return console.log(`Skipped: ${hour}:xx Cairo time is outside the 00:00–05:59 window.`);
-    if ((await metaRef.get()).data()?.lastResetDate === today) return console.log(`Skipped: ${today} was already reset.`);
+  if (!force && (await metaRef.get()).data()?.lastResetDate === today) {
+    console.log(`Skipped: ${today} was already reset.`);
+    return 0;
   }
 
   console.log(`Project ${projectId} – resetting for ${today}${dryRun ? ' (DRY RUN)' : ''}`);
-  const units: Op[][] = [];
-  let failed = false;
-  let seeded = 0;
+  const result = await resetAllBuses(adminDb, today, dryRun);
 
-  for (const busDoc of (await adminDb.collection('buses').get()).docs) {
-    const docs = (await adminDb.collection('employees').where('busId', '==', busDoc.id).get()).docs;
-    const plan = planBusReset(busDoc.data().capacity as number, await loadEmployeeStates(docs, today));
-    if ('error' in plan) {
-      console.error(`Bus ${busDoc.id}: ${plan.error} – skipped.`);
-      failed = true;
-      continue;
+  const rows = result.buses.map((b) => {
+    if (b.status === 'done') {
+      console.log(
+        `Bus ${b.busId}: ${b.seeded}/${b.total} employee(s) start the new day, counters → ${b.goingCount}/${b.returningCount}`,
+      );
+      return `| ${b.busId} | ✅ | ${b.seeded}/${b.total} | ${b.goingCount} / ${b.returningCount} |`;
     }
-    const todo = plan.employees.filter((p) => p.seed);
-    console.log(
-      `Bus ${busDoc.id}: ${todo.length}/${plan.employees.length} employee(s) start the new day, counters → ${plan.goingCount}/${plan.returningCount}`,
-    );
-    seeded += todo.length;
-    todo.forEach((p) => units.push(seedUnit(p, today)));
+    if (b.status === 'gone') return `| ${b.busId} | deleted during the run | – | – |`;
+    annotateError(`${TITLE}: bus ${b.busId} skipped`, b.error);
+    return `| ${b.busId} | ❌ ${b.error} | – | – |`;
+  });
+  summary(
+    [
+      `### Daily reset ${today}${dryRun ? ' (dry run)' : ''}`,
+      '',
+      '| Bus | Result | Employees reset | Going / Returning IN |',
+      '| --- | --- | --- | --- |',
+      ...rows,
+    ].join('\n'),
+  );
 
-    const busOps: Op[] = [
-      (b) =>
-        b.update(busDoc.ref, {
-          goingCount: plan.goingCount,
-          returningCount: plan.returningCount,
-          activeTripType: 'going',
-          updatedAt: FieldValue.serverTimestamp(),
-        }),
-    ];
-    const loc = await adminDb.collection('busLocations').doc(busDoc.id).get();
-    if (loc.exists && loc.data()?.active) {
-      busOps.push((b) => b.update(loc.ref, { active: false, updatedAt: FieldValue.serverTimestamp() }));
-    }
-    units.push(busOps);
+  if (result.buses.length === 0) annotateNotice(TITLE, 'There are no buses in the project.');
+  if (dryRun) {
+    console.log('Dry run – nothing written.');
+    return result.failed ? 1 : 0;
+  }
+  if (result.failed) {
+    annotateError(TITLE, 'Some buses were skipped; the day is not marked as done, so the next run retries.');
+    return 1;
   }
 
-  if (dryRun) return console.log('Dry run – nothing written.');
-
-  await commitUnits(units);
-  if (failed) {
-    console.error('Some buses were skipped; not marking the day as done so the next run retries.');
-    process.exit(1);
-  }
-  await metaRef.set({ lastResetDate: today, resetAt: FieldValue.serverTimestamp(), employeesChanged: seeded });
-  console.log(`Done. ${seeded} employee(s) started ${today}.`);
+  await metaRef.set({ lastResetDate: today, resetAt: FieldValue.serverTimestamp(), employeesChanged: result.seeded });
+  console.log(`Done. ${result.seeded} employee(s) started ${today}.`);
+  annotateNotice(TITLE, `${today}: ${result.seeded} employee(s) started the new day.`);
+  return 0;
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+// exitCode (not process.exit) so the output is fully written before Node ends (stdout is a pipe on GitHub).
+main()
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((err) => {
+    annotateError(`${TITLE} failed`, describeError(err));
+    if (err instanceof Error && err.stack) console.error(err.stack);
+    process.exitCode = 1;
+  });

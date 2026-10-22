@@ -35,7 +35,8 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
   /** The loaded record: opens the month picker. */
   const [monthly, setMonthly] = useState<{ employee: Employee; days: AttendanceDay[] } | null>(null);
 
-  const all = employees.data ?? [];
+  // Memoised so the lists below are only recomputed when the data really changes.
+  const all = useMemo(() => employees.data ?? [], [employees.data]);
   const main = useMemo(() => all.filter((e) => e.type === 'main'), [all]);
   const waiting = useMemo(() => all.filter((e) => e.type === 'waiting'), [all]);
 

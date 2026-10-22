@@ -145,6 +145,24 @@ describe('status changes (own record, atomic with the bus counter)', () => {
     await assertFails(goIn(as('u-emp1'), 'EMP1', 3));
   });
 
+  it('a counter that drifted to 0 does not lock an IN employee in (it stays at 0)', async () => {
+    await seed({ bus1GoingCount: 0 }); // EMP2 is IN, but the counter says 0
+    const db = as('u-emp2');
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP2'), { goingStatus: 'out', goingInCount: 0, updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: 0, statusChangeOf: 'EMP2', updatedAt: serverTimestamp() });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('…but the counter can never be written below zero', async () => {
+    await seed({ bus1GoingCount: 0 });
+    const db = as('u-emp2');
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP2'), { goingStatus: 'out', goingInCount: 0, updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: -1, updatedAt: serverTimestamp() });
+    await assertFails(batch.commit());
+  });
+
   it("an employee cannot touch a colleague's record", async () => {
     const db = as('u-emp1');
     const batch = writeBatch(db);
@@ -171,6 +189,52 @@ describe('status changes (own record, atomic with the bus counter)', () => {
     await assertFails(setDoc(doc(as('u-emp1'), 'employees', 'NEW1'), record));
     await assertFails(setDoc(doc(as('u-mgr'), 'employees', 'NEW1'), record));
     await assertSucceeds(setDoc(doc(as('u-adm'), 'employees', 'NEW1'), record));
+  });
+});
+
+describe('managers and the bus counters', () => {
+  it('a manager switches the direction', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as('u-mgr'), 'buses', 'bus1'), { activeTripType: 'returning', updatedAt: serverTimestamp() }),
+    );
+  });
+
+  it("a manager changes an employee's status together with the counter", async () => {
+    const db = as('u-mgr');
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP1'), { goingStatus: 'in', goingInCount: 1, updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: 2, statusChangeOf: 'EMP1', updatedAt: serverTimestamp() });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('…but cannot set the counters to an arbitrary number', async () => {
+    const db = as('u-mgr');
+    await assertFails(updateDoc(doc(db, 'buses', 'bus1'), { goingCount: 0, updatedAt: serverTimestamp() }));
+    await assertFails(
+      updateDoc(doc(db, 'buses', 'bus1'), { goingCount: 0, statusChangeOf: 'EMP2', updatedAt: serverTimestamp() }),
+    );
+  });
+
+  it('…nor move a counter of the wrong bus', async () => {
+    const db = as('u-mgr');
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP1'), { goingStatus: 'in', goingInCount: 1, updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: 2, statusChangeOf: 'EMP1', updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus2'), { goingCount: 1, statusChangeOf: 'EMP1', updatedAt: serverTimestamp() });
+    await assertFails(batch.commit());
+  });
+});
+
+describe('trips that do not exist yet', () => {
+  const today = todayKey();
+
+  it("an employee may listen to her own bus' trip before it is created", async () => {
+    await assertSucceeds(getDoc(doc(as('u-emp1'), 'busTrips', `bus1_${today}_going`)));
+  });
+
+  it("…but not probe another bus' trips", async () => {
+    await assertFails(getDoc(doc(as('u-emp1'), 'busTrips', `bus2_${today}_going`)));
+    await assertFails(getDoc(doc(as('u-emp1'), 'busTrips', `bus1x_${today}_going`)));
   });
 });
 
@@ -296,8 +360,19 @@ describe('the IN tally counts DAYS', () => {
     await assertFails(goOut(as('u-emp2'), 7));
   });
 
-  it('app versions that are still open on some phones (tally unchanged on IN → OUT) keep working', async () => {
-    await assertSucceeds(goOut(as('u-emp2'), 1));
+  it('IN → OUT without taking the day back is rejected (that was how toggling could inflate the tally)', async () => {
+    await assertFails(goOut(as('u-emp2'), 1));
+  });
+
+  it('IN → OUT → IN on one day still counts one day', async () => {
+    const db = as('u-emp2');
+    await assertSucceeds(goOut(db, 0));
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'employees', 'EMP2'), { goingStatus: 'in', goingInCount: 1, updatedAt: serverTimestamp() });
+    batch.update(doc(db, 'buses', 'bus1'), { goingCount: 1, updatedAt: serverTimestamp() });
+    await assertSucceeds(batch.commit());
+    const snap = await getDoc(doc(db, 'employees', 'EMP2'));
+    if (snap.data()?.goingInCount !== 1) throw new Error(`expected 1 day, got ${snap.data()?.goingInCount}`);
   });
 
   it('OUT → IN adds exactly one day, never two', async () => {

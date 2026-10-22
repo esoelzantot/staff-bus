@@ -24,7 +24,7 @@ async function call(payload: Payload): Promise<void> {
     if (res.ok) return;
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     if (res.status === 404 && !data?.error) {
-      throw makeError('unknown', 'خدمة إدارة الموظفين غير متاحة في هذه البيئة (تعمل على Vercel فقط).');
+      throw makeError('unknown', 'خدمة إدارة الموظفين غير متاحة في هذه البيئة (تعمل على Vercel، ومحلياً من خلال npm run dev).');
     }
     throw makeError('unknown', data?.error ?? 'تعذر تنفيذ العملية. حاول مرة أخرى.');
   } catch (err) {

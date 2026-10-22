@@ -22,7 +22,7 @@ async function main() {
   console.log(`Project ${projectId} – starting the daily record for ${today}${dryRun ? ' (DRY RUN)' : ''}`);
 
   const docs = (await adminDb.collection('employees').get()).docs;
-  const plans = planSnapshot(await loadEmployeeStates(docs, today));
+  const plans = planSnapshot(await loadEmployeeStates(adminDb, docs, today));
   const inGoing = plans.filter((p) => p.goingTally).length;
   const inReturning = plans.filter((p) => p.returningTally).length;
   console.log(
@@ -30,7 +30,7 @@ async function main() {
   );
   if (dryRun || plans.length === 0) return console.log(dryRun ? 'Dry run – nothing written.' : 'Nothing to do.');
 
-  await commitUnits(plans.map((p) => seedUnit(p, today)));
+  await commitUnits(adminDb, plans.map((p) => seedUnit(adminDb, p, today)));
   console.log('Done.');
 }
 

@@ -76,7 +76,10 @@ export async function setEmployeeStatus(employeeId: string, field: StatusField, 
         updatedAt: serverTimestamp(),
       });
       tx.update(busRef(employee.busId), {
+        // never below zero; the rules accept the same clamp, so a drifted counter cannot lock anyone IN
         [counter]: Math.max(0, bus[counter] + delta),
+        // the rules check the counter change against THIS employee's status change
+        statusChangeOf: employeeId,
         updatedAt: serverTimestamp(),
       });
       saved = {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -12,6 +13,42 @@ if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   throw new Error(
     'GOOGLE_APPLICATION_CREDENTIALS is missing. Point it at a service-account key (Firebase console → Project settings → Service accounts).',
   );
+}
+checkServiceAccountKey(process.env.GOOGLE_APPLICATION_CREDENTIALS, projectId);
+
+/**
+ * Fails early with a message that says what is wrong with the key (empty secret, pasted half, wrong project…)
+ * instead of the SDK's "Unexpected end of JSON input" or a later PERMISSION_DENIED.
+ */
+function checkServiceAccountKey(path: string, expectedProject: string): void {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8').trim();
+  } catch {
+    throw new Error(`The service-account key file "${path}" cannot be read.`);
+  }
+  if (!raw) {
+    throw new Error(
+      'The service-account key is EMPTY. On GitHub: Settings → Secrets and variables → Actions → set FIREBASE_SERVICE_ACCOUNT to the whole JSON key file.',
+    );
+  }
+  let key: Record<string, unknown>;
+  try {
+    key = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      'The service-account key is not valid JSON (often only part of the file was pasted into the secret). Paste the WHOLE file, from { to }.',
+    );
+  }
+  const missing = ['type', 'project_id', 'private_key', 'client_email'].filter((k) => typeof key[k] !== 'string');
+  if (key.type !== 'service_account' || missing.length > 0) {
+    throw new Error(`This is not a service-account key (missing: ${missing.join(', ') || 'type=service_account'}).`);
+  }
+  if (key.project_id !== expectedProject) {
+    throw new Error(
+      `The service-account key belongs to project "${String(key.project_id)}", but the reset targets "${expectedProject}".`,
+    );
+  }
 }
 
 const app = getApps()[0] ?? initializeApp({ credential: applicationDefault(), projectId });

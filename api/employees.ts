@@ -253,6 +253,8 @@ async function updateEmployee(a: Admin, body: Body): Promise<void> {
     const oldBusRef = a.db.collection('buses').doc(emp.busId);
     const newBusSnap = await tx.get(newBusRef);
     const oldBusSnap = busChanged ? await tx.get(oldBusRef) : null;
+    const oldLocRef = a.db.collection('busLocations').doc(emp.busId);
+    const oldLocSnap = busChanged ? await tx.get(oldLocRef) : null;
     const peers = becomesMain ? await tx.get(a.db.collection('employees').where('busId', '==', busId)) : null;
 
     if (!newBusSnap.exists) throw new HttpError(404, 'الأتوبيس غير موجود.');
@@ -286,6 +288,11 @@ async function updateEmployee(a: Admin, body: Body): Promise<void> {
         returningCount: newBus.returningCount + dR,
         updatedAt: FieldValue.serverTimestamp(),
       });
+    }
+    // Moved to another bus while sharing the old bus' location: stop it (her phone is no longer on that bus).
+    const oldLoc = oldLocSnap?.data();
+    if (oldLocSnap?.exists && oldLoc?.active && oldLoc.sharedById === id) {
+      tx.update(oldLocRef, { active: false, updatedAt: FieldValue.serverTimestamp() });
     }
   });
 

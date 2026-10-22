@@ -60,6 +60,8 @@ export function useLocationSharing(bus: Bus | null, me: Employee | null) {
   const lastSent = useRef(0);
   const lastFix = useRef<Fix | null>(null);
   const sending = useRef(false);
+  /** false once the page is left: a start() that is still waiting for the GPS / the claim must not go on. */
+  const mounted = useRef(true);
   const ctx = useRef({ busId: bus?.id ?? null, me });
   ctx.current = { busId: bus?.id ?? null, me };
 
@@ -89,7 +91,14 @@ export function useLocationSharing(bus: Bus | null, me: Employee | null) {
     setError(null);
     try {
       const first = toFix(await getPosition()); // asks the browser for permission
+      if (!mounted.current) return;
       await claimBusLocation(busId, employee, first);
+      if (!mounted.current) {
+        // Left the page while the claim was on its way: give the bus back instead of starting a GPS watch
+        // that nothing could stop any more.
+        void releaseBusLocation(busId).catch(() => undefined);
+        return;
+      }
       lastSent.current = Date.now();
       lastFix.current = first;
       sending.current = false;
@@ -127,23 +136,24 @@ export function useLocationSharing(bus: Bus | null, me: Employee | null) {
       );
       setSharing(true);
     } catch (err) {
-      setError(toAppError(err).message);
+      if (mounted.current) setError(toAppError(err).message);
     } finally {
-      setStarting(false);
+      if (mounted.current) setStarting(false);
     }
   }, [stop, stopWatching]);
 
-  // Leaving the page (logout / navigation) ends an active sharing.
-  useEffect(
-    () => () => {
+  // Leaving the page (logout / navigation) ends an active sharing – and cancels one that is still starting.
+  useEffect(() => {
+    mounted.current = true; // StrictMode mounts twice in development
+    return () => {
+      mounted.current = false;
       if (watchId.current === null) return;
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
       const { busId } = ctx.current;
       if (busId) void releaseBusLocation(busId).catch(() => undefined);
-    },
-    [],
-  );
+    };
+  }, []);
 
   return { sharing, starting, error, start, stop, clearError: () => setError(null) };
 }
