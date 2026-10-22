@@ -2,7 +2,7 @@ import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /** The serverless functions in /api (Vercel) that `npm run dev` serves too. */
-const API_ROUTES = new Set(['login', 'employees']);
+const API_ROUTES = new Set(['login', 'employees', 'notify']);
 
 interface ApiResponse {
   status(code: number): ApiResponse;
@@ -11,12 +11,17 @@ interface ApiResponse {
 }
 
 type ApiHandler = (
-  req: { method?: string; headers: Record<string, string | string[] | undefined>; body?: unknown },
+  req: {
+    method?: string;
+    headers: Record<string, string | string[] | undefined>;
+    query: Record<string, string>;
+    body?: unknown;
+  },
   res: ApiResponse,
 ) => Promise<void>;
 
 /**
- * Local stand-in for Vercel: serves /api/login and /api/employees from the same files Vercel deploys, so the
+ * Local stand-in for Vercel: serves /api/login, /api/employees and /api/notify from the same files Vercel deploys, so the
  * whole app (sign-in included) runs with `npm run dev`. The functions are loaded through Vite's SSR loader, so an
  * edit in /api is picked up on the next request. Dev server only – it is not part of the build.
  */
@@ -26,7 +31,8 @@ function localApi(): Plugin {
     apply: 'serve',
     configureServer(server: ViteDevServer) {
       server.middlewares.use(async (req, res, next) => {
-        const route = /^\/api\/([\w-]+)\/?$/.exec(req.url?.split('?')[0] ?? '')?.[1];
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const route = /^\/api\/([\w-]+)\/?$/.exec(url.pathname)?.[1];
         if (!route || !API_ROUTES.has(route)) return next();
 
         const chunks: Buffer[] = [];
@@ -54,6 +60,7 @@ function localApi(): Plugin {
               method: req.method,
               // Vercel sets x-real-ip itself; locally the socket address plays that role (per-IP login limit).
               headers: { ...req.headers, 'x-real-ip': req.socket.remoteAddress ?? 'local' },
+              query: Object.fromEntries(url.searchParams),
               body: raw || undefined,
             },
             response,

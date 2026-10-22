@@ -306,6 +306,14 @@ async function deleteEmployee(a: Admin, body: Body): Promise<void> {
   const id = parseId(body.employeeId);
   if (!(await removeEmployeeRecord(a, id))) throw new HttpError(404, 'الموظف غير موجود.');
 
+  // No more reminders to the devices of a deleted employee.
+  const devices = await a.db.collection('pushSubscriptions').where('employeeId', '==', id).get();
+  if (!devices.empty) {
+    const batch = a.db.batch();
+    devices.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+
   // Remove the login account too (never touch a manager/admin account).
   const user = await findUser(a, id);
   if (!user) return;

@@ -6,6 +6,8 @@ export const COLLECTIONS = {
   busLocations: 'busLocations',
   /** Sub-collection of employees/{id}: the daily IN record. */
   attendance: 'attendance',
+  /** One document per device that turned the daily reminders on. */
+  pushSubscriptions: 'pushSubscriptions',
 } as const;
 
 export const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || 'Employee Bus Service';

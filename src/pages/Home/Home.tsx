@@ -27,7 +27,7 @@ export function Home() {
         </main>
       );
     }
-    return <EmployeeDashboard employeeId={user.employeeId} onLogout={signOut} />;
+    return <EmployeeDashboard uid={user.uid} employeeId={user.employeeId} onLogout={signOut} />;
   }
   return <ManagerDashboard onLogout={signOut} />;
 }

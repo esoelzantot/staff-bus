@@ -47,14 +47,30 @@ service cloud.firestore {
     }
 
     // ── Trip day ────────────────────────────────────────────────────────────
-    // A trip's "date" must be TODAY in Cairo (the service runs in Cairo, UTC+2 in winter / UTC+3 in summer),
-    // judged by the server clock – a phone with a wrong date or time zone cannot create trips for other days.
-    // Accepting both offsets only matters during the single hour around a daylight-saving change.
+    // A trip's / record's "date" must be TODAY in Cairo, judged by the server clock – a phone with a wrong date or
+    // time zone cannot write for another day. Cairo is UTC+2, and UTC+3 in summer: from the last Friday of April
+    // 00:00 to the last Thursday of October 24:00 (Egypt, since 2023). The rules have no time-zone database, so the
+    // summer time is computed here; tests/unit/cairoDay.test.ts checks this formula against the real time zone for
+    // every hour of 2024–2032. Keep the two in sync.
     function pad2(n)   { return n < 10 ? '0' + string(n) : string(n); }
     function dayKey(t) { return string(t.year()) + '-' + pad2(t.month()) + '-' + pad2(t.day()); }
+    // t2 = the time in Cairo winter time (UTC+2). dayOfWeek(): 1 = Monday … 7 = Sunday, so % 7 gives 0 = Sunday.
+    function cairoSummer(t2) {
+      let m = t2.month();
+      let d = t2.day();
+      let wd = t2.dayOfWeek() % 7;
+      let sinceFriday = (wd - 5 + 7) % 7;
+      let sinceThursday = (wd - 4 + 7) % 7;
+      return (m > 4 && m < 10)
+          || (m == 4 && d - sinceFriday >= 24)
+          || (m == 10 && !(d - sinceThursday >= 25 && (sinceThursday > 0 || t2.hours() >= 23)));
+    }
+    function cairoToday() {
+      let t2 = request.time + duration.value(2, 'h');
+      return cairoSummer(t2) ? dayKey(request.time + duration.value(3, 'h')) : dayKey(t2);
+    }
     function isCairoToday(date) {
-      return date == dayKey(request.time + duration.value(2, 'h'))
-          || date == dayKey(request.time + duration.value(3, 'h'));
+      return date == cairoToday();
     }
 
     // Counters never go below zero. A status change on a counter that already reads 0 (drift) keeps it at 0
@@ -299,6 +315,26 @@ service cloud.firestore {
     match /credentials/{id}   { allow read, write: if false; }
     match /loginAttempts/{id} { allow read, write: if false; }
     match /meta/{id}          { allow read, write: if false; }
+
+    // ── Push notifications (daily reminders, sent by /api/notify with the Admin SDK) ──
+    // One document per device, written by the employee herself when she taps "فعّل التنبيهات". Only she can see
+    // or remove it; the id is derived from the endpoint, so the same device never registers twice.
+    function pushSubscriptionValid() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['uid', 'employeeId', 'endpoint', 'p256dh', 'auth', 'createdAt', 'updatedAt'])
+        && d.uid == request.auth.uid
+        && d.employeeId == profile().employeeDocId
+        && d.endpoint is string && d.endpoint.size() <= 1024 && d.endpoint.matches('https://.+')
+        && d.p256dh is string && d.p256dh.size() <= 256
+        && d.auth is string && d.auth.size() <= 64
+        && d.updatedAt == request.time;
+    }
+
+    match /pushSubscriptions/{id} {
+      allow read, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create:       if isEmployee() && pushSubscriptionValid();
+      allow update:       if isEmployee() && resource.data.uid == request.auth.uid && pushSubscriptionValid();
+    }
 
     match /users/{uid} {
       allow read:  if request.auth != null && (request.auth.uid == uid || isManager());

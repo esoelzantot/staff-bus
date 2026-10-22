@@ -11,6 +11,8 @@ export type AppErrorCode =
   | 'bus-full'
   | 'already-arrived'
   | 'already-sharing'
+  | 'push-denied'
+  | 'push-unavailable'
   | 'not-found'
   | 'too-many-requests'
   | 'permission-denied'
@@ -40,6 +42,8 @@ const MESSAGES: Record<AppErrorCode, string> = {
   'bus-full': 'الأتوبيس ممتلئ حالياً.',
   'already-arrived': 'تم تسجيل الوصول لهذه الرحلة بالفعل.',
   'already-sharing': 'زميل آخر يشارك موقع الأتوبيس بالفعل.',
+  'push-denied': 'التنبيهات مقفولة. اسمح بالإشعارات لهذا الموقع من إعدادات المتصفح ثم حاول مرة أخرى.',
+  'push-unavailable': 'تعذر تفعيل التنبيهات على هذا الجهاز. حاول مرة أخرى.',
   'not-found': 'لم نعثر على هذا السجل.',
   'too-many-requests': 'محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.',
   'permission-denied': 'ليس لديك صلاحية لتنفيذ هذا الإجراء.',

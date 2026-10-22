@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { fetchUser, logout, observeAuthState } from '../services/authService';
+import { disablePush } from '../services/pushService';
 import type { User } from '../types';
 import { toAppError } from '../utils/errors';
 
@@ -58,6 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       state,
       error,
       logout: async () => {
+        // "تغيير الموظف": the reminders of this person must not go on arriving on this device for the next one.
+        // Best effort and never longer than 3 s – signing out must not depend on it.
+        if (state.status === 'signedIn' && state.user.role === 'employee') {
+          await Promise.race([disablePush().catch(() => undefined), new Promise((r) => setTimeout(r, 3_000))]);
+        }
         await logout();
         setState({ status: 'signedOut' });
       },

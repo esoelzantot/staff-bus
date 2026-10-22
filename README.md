@@ -112,6 +112,46 @@ Do the steps in this order so nobody is locked out in between:
 6. Re-deploy the rules: `npm run rules:deploy`.
 7. Delete `VITE_AUTH_SUFFIX` from Vercel / `.env`.
 
+## Daily reminders (push notifications)
+
+Every working day (Sunday – Thursday) each employee who turned the reminders on gets:
+
+* **07:00** – "🚌 الذهاب – صباح الخير … هتركب الأتوبيس النهارده؟" with their current Going status
+* **16:00** – "🚌 العودة … هترجع بالأتوبيس النهارده؟" with their current Returning status
+
+Tapping the notification opens the app. How it works:
+
+* **Employee screen → "التنبيهات اليومية" → فعّل التنبيهات.** The browser asks for permission, the device subscribes
+  (standard Web Push, VAPID) and `pushSubscriptions/{id}` stores it (one document per device; only the employee can
+  read / change it). "إيقاف التنبيهات" and "تغيير الموظف" remove it from that device.
+* **iPhone / iPad:** Web Push works only for an app on the home screen (iOS 16.4+): Safari → Share → "Add to Home
+  Screen", open it from the icon, then turn the reminders on. The card explains this on an iPhone.
+* **Sending:** `api/notify.ts` (`?slot=going` / `?slot=returning`) sends to every stored device, at most once per slot
+  per Cairo day (`meta/notify_{day}_{slot}`), only Sunday – Thursday, and removes devices that expired or belong to
+  a deleted employee. `public/sw.js` shows the notification.
+* **Schedule:** GitHub Actions starts scheduled runs hours late, so an external scheduler calls the endpoint on time:
+
+### Setup
+
+1. Keys (once): `npx web-push generate-vapid-keys`, plus a long random `NOTIFY_SECRET`
+   (`node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`).
+2. **Vercel → Settings → Environment Variables:** `VITE_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NOTIFY_SECRET`
+   (and optionally `VAPID_SUBJECT`), then redeploy. Without `VITE_VAPID_PUBLIC_KEY` the card is simply hidden.
+3. `npm run rules:deploy` (the `pushSubscriptions` rules).
+4. **cron-job.org** → Create cronjob, twice:
+
+   | | Going | Returning |
+   | --- | --- | --- |
+   | URL | `https://staff-bus.vercel.app/api/notify?slot=going` | `https://staff-bus.vercel.app/api/notify?slot=returning` |
+   | Schedule | 07:00, Sun – Thu | 16:00, Sun – Thu |
+   | Time zone | Africa/Cairo | Africa/Cairo |
+   | Advanced → Request method | POST | POST |
+   | Advanced → Headers | `Authorization: Bearer <NOTIFY_SECRET>` | same |
+
+   The endpoint checks the day itself as well, and a second call the same day sends nothing, so retries are safe.
+5. Test: `curl -X POST -H "Authorization: Bearer <NOTIFY_SECRET>" "https://staff-bus.vercel.app/api/notify?slot=going&dryRun=1"`
+   (counts the devices, sends nothing). `&force=1` sends now, ignoring the day and the once-a-day check.
+
 ## Upgrading to the strict counters / tally rules
 
 This version tightens `firestore.rules`: the IN tally must go down again on IN → OUT (no more "legacy" branch), and
@@ -127,7 +167,7 @@ a manager can only move a bus counter together with an employee's status change 
 src/firebase   config · auth · firestore        src/pages     Home · EmployeeDashboard · ManagerDashboard
 src/services   auth · employee · busTrip        src/hooks     useLiveData · useBusData · useStatusUpdater
 src/components Header · EmployeeCard · EmployeeList · PassengerList · Summary · ArrivalSection · EmployeeIdDialog
-api            login.ts · employees.ts · _lib/ (core · pin · rateLimit)   Vercel serverless functions
+api            login.ts · employees.ts · notify.ts · _lib/ (core · pin · rateLimit)   Vercel serverless functions
 scripts        seed.ts (dev) · create-user.ts · set-pin.ts · harden-auth.ts · import-employees.ts · reset-daily.ts · attendance-start.ts
 tests          rules/ (Firestore rules, emulator)       *.test.ts next to the code (unit tests)
 ```

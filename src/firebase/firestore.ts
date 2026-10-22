@@ -23,6 +23,7 @@ export const attendanceCollection = (employeeId: string) =>
 export const attendanceRef = (employeeId: string, day: string) =>
   doc(db, COLLECTIONS.employees, employeeId, COLLECTIONS.attendance, day);
 export const locationRef = (busId: string) => doc(db, COLLECTIONS.busLocations, busId);
+export const pushSubscriptionRef = (id: string) => doc(db, COLLECTIONS.pushSubscriptions, id);
 
 type AnySnapshot = DocumentSnapshot | QueryDocumentSnapshot;
 

@@ -47,6 +47,12 @@ export function cairoDay(now: Date = new Date()): string {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+/** Day of the week in Cairo: 0 = Sunday … 6 = Saturday. */
+export function cairoWeekday(now: Date = new Date()): number {
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Cairo', weekday: 'short' }).format(now);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
+}
+
 let cached: Admin | null = null;
 
 export function getAdmin(): Admin {

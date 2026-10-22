@@ -436,3 +436,49 @@ describe('the daily IN record (employees/{id}/attendance/{day})', () => {
     await assertFails(deleteDoc(at(as('u-emp1'), 'EMP1')));
   });
 });
+
+describe('push subscriptions (daily reminders)', () => {
+  const device = (uid: string, employeeId: string, extra: Record<string, unknown> = {}) => ({
+    uid,
+    employeeId,
+    endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
+    p256dh: 'BPublicKey',
+    auth: 'secret',
+    updatedAt: serverTimestamp(),
+    ...extra,
+  });
+
+  it('an employee registers her own device, and can update / read / remove it', async () => {
+    const db = as('u-emp1');
+    await assertSucceeds(setDoc(doc(db, 'pushSubscriptions', 'd1'), device('u-emp1', 'EMP1')));
+    await assertSucceeds(setDoc(doc(db, 'pushSubscriptions', 'd1'), device('u-emp1', 'EMP1', { auth: 'renewed' })));
+    await assertSucceeds(getDoc(doc(db, 'pushSubscriptions', 'd1')));
+    await assertSucceeds(deleteDoc(doc(db, 'pushSubscriptions', 'd1')));
+  });
+
+  it('…but never in the name of someone else', async () => {
+    const db = as('u-emp1');
+    await assertFails(setDoc(doc(db, 'pushSubscriptions', 'd1'), device('u-emp2', 'EMP2')));
+    await assertFails(setDoc(doc(db, 'pushSubscriptions', 'd1'), device('u-emp1', 'EMP2')));
+  });
+
+  it("a colleague cannot read, take over or delete another person's device", async () => {
+    await assertSucceeds(setDoc(doc(as('u-emp1'), 'pushSubscriptions', 'd1'), device('u-emp1', 'EMP1')));
+    const other = as('u-emp2');
+    await assertFails(getDoc(doc(other, 'pushSubscriptions', 'd1')));
+    await assertFails(setDoc(doc(other, 'pushSubscriptions', 'd1'), device('u-emp2', 'EMP2')));
+    await assertFails(deleteDoc(doc(other, 'pushSubscriptions', 'd1')));
+  });
+
+  it('only the expected fields, and only an https endpoint', async () => {
+    const db = as('u-emp1');
+    await assertFails(setDoc(doc(db, 'pushSubscriptions', 'd1'), device('u-emp1', 'EMP1', { role: 'admin' })));
+    await assertFails(
+      setDoc(doc(db, 'pushSubscriptions', 'd1'), device('u-emp1', 'EMP1', { endpoint: 'http://example.com' })),
+    );
+  });
+
+  it('managers do not register devices (the reminders are for employees)', async () => {
+    await assertFails(setDoc(doc(as('u-mgr'), 'pushSubscriptions', 'd1'), device('u-mgr', 'MGR')));
+  });
+});

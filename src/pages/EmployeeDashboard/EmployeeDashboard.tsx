@@ -5,6 +5,7 @@ import { BusTracker } from '../../components/BusTracker/BusTracker';
 import { EmployeeCard } from '../../components/EmployeeCard/EmployeeCard';
 import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
 import { PassengerList } from '../../components/PassengerList/PassengerList';
+import { ReminderSettings } from '../../components/ReminderSettings/ReminderSettings';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { Spinner } from '../../components/common/Spinner';
@@ -17,12 +18,14 @@ import { toAppError } from '../../utils/errors';
 import { passengersFor } from '../../utils/passengers';
 
 interface Props {
+  /** Firebase Auth uid of the signed-in employee (the reminders are stored per account). */
+  uid: string;
   employeeId: string;
   onLogout: () => void;
 }
 
 /** Employees see everyone on their bus, but only their own record is editable. */
-export function EmployeeDashboard({ employeeId, onLogout }: Props) {
+export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
   const record = useEmployeeRecord(employeeId);
   const me = record.data;
   const bus = useBus(me?.busId ?? null);
@@ -148,6 +151,8 @@ export function EmployeeDashboard({ employeeId, onLogout }: Props) {
             pendingValue={updater.pendingValue}
             onChange={updater.update}
           />
+
+          <ReminderSettings owner={{ uid, employeeId }} />
 
           {bus.data && <BusTracker bus={bus.data} me={me} arrived={Boolean(trip.data?.arrivalTime)} />}
 
