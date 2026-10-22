@@ -44,6 +44,7 @@ export async function loadEmployeeStates(
     goingStatus: d.data().goingStatus,
     returningStatus: d.data().returningStatus,
     hasRecordToday: records[i].exists,
+    changedAt: d.data().updatedAt?.toMillis?.() ?? 0,
   }));
 }
 
@@ -72,6 +73,34 @@ export function seedUnit(db: Firestore, plan: EmployeePlan, day: string): Op[] {
       }),
   ];
 }
+
+/**
+ * A waiting employee who gives a seat back at the start of the day (see EmployeePlan.bumped): the new statuses,
+ * the day taken back from the tally, and today's record (which exists – they pressed IN after midnight) updated.
+ */
+export function bumpUnit(db: Firestore, plan: EmployeePlan, day: string): Op[] {
+  const empRef = db.collection('employees').doc(plan.id);
+  return [
+    (w) =>
+      w.update(empRef, {
+        goingStatus: plan.going,
+        returningStatus: plan.returning,
+        ...(plan.goingTally ? { goingInCount: FieldValue.increment(plan.goingTally) } : {}),
+        ...(plan.returningTally ? { returningInCount: FieldValue.increment(plan.returningTally) } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      }),
+    (w) =>
+      w.update(attendanceRef(db, plan.id, day), {
+        goingStatus: plan.going,
+        returningStatus: plan.returning,
+        updatedAt: FieldValue.serverTimestamp(),
+      }),
+  ];
+}
+
+/** The writes the reset makes for one employee (none when the employee is left untouched). */
+export const planUnit = (db: Firestore, plan: EmployeePlan, day: string): Op[] =>
+  plan.seed ? seedUnit(db, plan, day) : plan.bumped ? bumpUnit(db, plan, day) : [];
 
 /** Commits units in batches of at most 400 operations, never splitting a unit across two batches. */
 export async function commitUnits(db: Firestore, units: Op[][]): Promise<void> {

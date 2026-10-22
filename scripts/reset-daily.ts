@@ -44,7 +44,11 @@ async function main(): Promise<number> {
       console.log(
         `Bus ${b.busId}: ${b.seeded}/${b.total} employee(s) start the new day, counters → ${b.goingCount}/${b.returningCount}`,
       );
-      return `| ${b.busId} | ✅ | ${b.seeded}/${b.total} | ${b.goingCount} / ${b.returningCount} |`;
+      if (b.bumped.length > 0) {
+        annotateNotice(`${TITLE}: bus ${b.busId}`, `Seat given back to the main employees by: ${b.bumped.join(', ')}`);
+      }
+      const note = b.bumped.length > 0 ? ` (seat given back: ${b.bumped.join(', ')})` : '';
+      return `| ${b.busId} | ✅${note} | ${b.seeded}/${b.total} | ${b.goingCount} / ${b.returningCount} |`;
     }
     if (b.status === 'gone') return `| ${b.busId} | deleted during the run | – | – |`;
     annotateError(`${TITLE}: bus ${b.busId} skipped`, b.error);

@@ -14,15 +14,27 @@
  * together, so an IN / OUT pressed at the same moment can never leave the counters out of step with the statuses
  * (Firestore retries the transaction instead).
  *
+ * Main employees come first: a WAITING employee who took a seat after midnight, before the (often late) reset ran,
+ * gives it back if the bus would otherwise be over capacity – the most recent first, tally and record corrected.
+ *
  * Idempotent: an employee that already has today's record is left untouched – a re-run, or a late run after the
  * person already pressed IN / OUT today, can never count a day twice or overwrite what they chose.
  */
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { MAX_WRITES, loadEmployeeStates, seedUnit, type Op } from './attendance';
+import { MAX_WRITES, loadEmployeeStates, planUnit, type Op } from './attendance';
 import { planBusReset } from './dailyReset';
 
 export type BusResult =
-  | { busId: string; status: 'done'; seeded: number; total: number; goingCount: number; returningCount: number }
+  | {
+      busId: string;
+      status: 'done';
+      seeded: number;
+      /** Waiting employees who gave back a seat they took after midnight (main employees come first). */
+      bumped: string[];
+      total: number;
+      goingCount: number;
+      returningCount: number;
+    }
   | { busId: string; status: 'error'; error: string }
   | { busId: string; status: 'gone' };
 
@@ -55,18 +67,18 @@ export function resetBus(db: Firestore, busId: string, today: string, dryRun = f
     const plan = planBusReset(capacity, states);
     if ('error' in plan) return { busId, status: 'error', error: plan.error };
 
-    const todo = plan.employees.filter((p) => p.seed);
     const result: BusResult = {
       busId,
       status: 'done',
-      seeded: todo.length,
+      seeded: plan.employees.filter((p) => p.seed).length,
+      bumped: plan.employees.filter((p) => p.bumped).map((p) => p.id),
       total: plan.employees.length,
       goingCount: plan.goingCount,
       returningCount: plan.returningCount,
     };
     if (dryRun) return result;
 
-    const ops: Op[] = todo.flatMap((p) => seedUnit(db, p, today));
+    const ops: Op[] = plan.employees.flatMap((p) => planUnit(db, p, today));
     ops.push((w) =>
       w.update(busRef, {
         goingCount: plan.goingCount,

@@ -44,6 +44,43 @@ describe('planBusReset', () => {
     expect(plan.returningCount).toBe(2);
   });
 
+  it('a waiting employee who took a seat after midnight gives it back when the main employees need it', () => {
+    const early = { ...e('w1', 'waiting', 'in', 'out', true), changedAt: 100 };
+    const plan = planBusReset(2, [e('m1', 'main', 'out', 'out'), e('m2', 'main', 'out', 'out'), early]);
+    if ('error' in plan) throw new Error(plan.error);
+    expect(plan.employees[2]).toEqual({
+      id: 'w1',
+      seed: false,
+      bumped: true,
+      going: 'out',
+      returning: 'out',
+      goingTally: -1, // the day is taken back
+      returningTally: 0,
+    });
+    expect(plan.goingCount).toBe(2);
+  });
+
+  it('…the most recent first, and only as many as needed', () => {
+    const plan = planBusReset(3, [
+      e('m1', 'main', 'out', 'out'),
+      e('m2', 'main', 'out', 'out'),
+      { ...e('w1', 'waiting', 'in', 'out', true), changedAt: 100 },
+      { ...e('w2', 'waiting', 'in', 'out', true), changedAt: 200 },
+    ]);
+    if ('error' in plan) throw new Error(plan.error);
+    expect(plan.employees.find((p) => p.id === 'w2')).toMatchObject({ bumped: true, going: 'out' });
+    expect(plan.employees.find((p) => p.id === 'w1')).toMatchObject({ going: 'in' });
+    expect(plan.employees.find((p) => p.id === 'w1')?.bumped).toBeUndefined();
+    expect(plan.goingCount).toBe(3);
+  });
+
+  it("a main employee's own choice since midnight is never changed", () => {
+    const plan = planBusReset(2, [e('m1', 'main', 'out', 'in', true), e('m2', 'main', 'in', 'in')]);
+    if ('error' in plan) throw new Error(plan.error);
+    expect(plan.employees[0]).toMatchObject({ seed: false, going: 'out', returning: 'in' });
+    expect(plan.employees[0].bumped).toBeUndefined();
+  });
+
   it('refuses a roster that does not fit the bus', () => {
     const plan = planBusReset(2, [e('a', 'main', 'in', 'in'), e('b', 'main', 'in', 'in'), e('c', 'main', 'in', 'in')]);
     expect('error' in plan).toBe(true);

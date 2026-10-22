@@ -7,6 +7,8 @@ export interface EmployeeState {
   returningStatus: Status;
   /** Today's IN record (employees/{id}/attendance/{today}) already exists. */
   hasRecordToday: boolean;
+  /** When the employee's statuses last changed (ms) – decides who gives a seat back first (see planBusReset). */
+  changedAt?: number;
 }
 
 /** What the reset does for one employee. */
@@ -19,10 +21,16 @@ export interface EmployeePlan {
    *         leave everything untouched, so a re-run can never count a day twice.
    */
   seed: boolean;
+  /**
+   * true = a WAITING employee who took a seat after midnight, before the reset ran, while the main employees
+   *        (who start the day IN) need it: set back to OUT for that direction, the day taken back from the tally
+   *        (goingTally / returningTally = -1) and today's record updated.
+   */
+  bumped?: boolean;
   /** Statuses the employee has after the reset. */
   going: Status;
   returning: Status;
-  /** Days to add to goingInCount / returningInCount (1 when the day starts IN). */
+  /** Days to add to goingInCount / returningInCount (1 when the day starts IN, -1 when bumped). */
   goingTally: number;
   returningTally: number;
 }
@@ -61,6 +69,27 @@ export function planBusReset(capacity: number, employees: EmployeeState[]): BusR
     const tally = start === 'in' ? 1 : 0;
     return { id: e.id, seed: true, going: start, returning: start, goingTally: tally, returningTally: tally };
   });
+
+  // Main employees have priority at the start of the day. A waiting employee may already have taken a seat
+  // after midnight (GitHub starts the reset late) – if the bus would be over capacity, those seats are given back,
+  // the most recent first. Main employees' own choices since midnight are never changed.
+  const byId = new Map(employees.map((e) => [e.id, e]));
+  for (const [dir, tally] of [
+    ['going', 'goingTally'],
+    ['returning', 'returningTally'],
+  ] as const) {
+    let count = plans.filter((p) => p[dir] === 'in').length;
+    const giveBack = plans
+      .filter((p) => !p.seed && p[dir] === 'in' && byId.get(p.id)?.type === 'waiting')
+      .sort((a, b) => (byId.get(b.id)?.changedAt ?? 0) - (byId.get(a.id)?.changedAt ?? 0));
+    for (const p of giveBack) {
+      if (count <= capacity) break;
+      p[dir] = 'out';
+      p[tally] = -1;
+      p.bumped = true;
+      count--;
+    }
+  }
 
   const goingCount = plans.filter((p) => p.going === 'in').length;
   const returningCount = plans.filter((p) => p.returning === 'in').length;
