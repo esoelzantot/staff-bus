@@ -2,7 +2,7 @@
  * Shared server-side helpers for the Vercel functions in /api (the "_lib" folder is not deployed as a route).
  * Relative imports use the ".js" extension on purpose: the project is ESM ("type": "module").
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
@@ -51,6 +51,17 @@ export function cairoDay(now: Date = new Date()): string {
 export function cairoWeekday(now: Date = new Date()): number {
   const name = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Cairo', weekday: 'short' }).format(now);
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
+}
+
+const digest = (value: string) => createHash('sha256').update(value).digest();
+
+/**
+ * Constant-time check of "Authorization: Bearer <NOTIFY_SECRET>" – the secret the scheduler (cron-job.org) sends to
+ * /api/notify and /api/daily-reset. A missing or short secret never opens the door.
+ */
+export function isCronAuthorized(header: string | undefined, secret = process.env.NOTIFY_SECRET): boolean {
+  if (!secret || secret.length < 16 || !header?.startsWith('Bearer ')) return false;
+  return timingSafeEqual(digest(header.slice(7).trim()), digest(secret));
 }
 
 let cached: Admin | null = null;

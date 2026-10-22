@@ -18,7 +18,7 @@ import { getFirestore as getAdminFirestore, type Firestore as AdminFirestore } f
 import { doc, getDoc, serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { resetAllBuses } from '../../scripts/lib/resetDay';
+import { resetAllBuses } from '../../api/_lib/resetDay.js';
 import { todayKey } from '../../src/utils/date/format';
 
 const PROJECT = 'demo-staff-bus-newday';

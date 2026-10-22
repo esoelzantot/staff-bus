@@ -1,17 +1,14 @@
-name: Daily reset
+name: Daily reset (backup)
 
-# Every night shortly after 00:00 Cairo (scripts/lib/resetDay.ts):
-#   main employees → IN (Going + Returning) and today counted as an IN day · waiting employees → OUT
-#   a daily IN record for everyone · bus counters recomputed · direction → Going · shared location stopped
-#
-# GitHub starts scheduled runs late (often 1–3 hours) and sometimes drops them, so the workflow is scheduled every
-# 30 minutes through the night. The script works only between 00:00 and 05:59 Cairo and only ONCE per day
-# (meta/dailyReset), so the extra runs end within seconds. Cron is UTC: 21:00–02:59 UTC = 00:00–05:59 Cairo in
-# summer (UTC+3); in winter (UTC+2) the first useful run is the 22:07 UTC one.
+# BACKUP of the daily reset. The main trigger is cron-job.org calling https://staff-bus.vercel.app/api/daily-reset at
+# 00:05 Cairo; both run the same code (api/_lib/resetDay.ts) and the reset acts only ONCE per Cairo day
+# (meta/dailyReset), so this workflow normally just reports "already reset". It only does the work if the main
+# trigger failed. GitHub starts scheduled runs late (often 1–3 h), which is fine for a backup.
+#   22:37 / 00:37 UTC = 01:37 / 03:37 Cairo in summer (UTC+3), 00:37 / 02:37 in winter (UTC+2) – inside 00:00–05:59.
 on:
   schedule:
-    - cron: '7,37 21-23 * * *'
-    - cron: '7,37 0-2 * * *'
+    - cron: '37 22 * * *'
+    - cron: '37 0 * * *'
   workflow_dispatch:
     inputs:
       force:

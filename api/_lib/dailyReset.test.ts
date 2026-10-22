@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planBusReset, planSnapshot, type EmployeeState } from './dailyReset';
+import { planBusReset, planSnapshot, type EmployeeState } from './dailyReset.js';
 
 const e = (
   id: string,

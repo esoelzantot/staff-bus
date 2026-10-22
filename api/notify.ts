@@ -20,10 +20,9 @@
  *   VAPID_SUBJECT            optional, "mailto:you@example.com" or the app's https URL
  *   FIREBASE_SERVICE_ACCOUNT the service-account JSON (already set for the other functions)
  */
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import webpush from 'web-push';
-import { cairoDay, cairoWeekday, getAdmin, HttpError, type Admin } from './_lib/core.js';
+import { cairoDay, cairoWeekday, getAdmin, HttpError, isCronAuthorized, type Admin } from './_lib/core.js';
 
 export type Slot = 'going' | 'returning';
 
@@ -232,14 +231,6 @@ interface Res {
 }
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-const digest = (value: string) => createHash('sha256').update(value).digest();
-
-/** Constant-time check of "Authorization: Bearer <NOTIFY_SECRET>". */
-export function authorized(header: string | undefined, secret: string | undefined): boolean {
-  if (!secret || secret.length < 16 || !header?.startsWith('Bearer ')) return false;
-  return timingSafeEqual(digest(header.slice(7).trim()), digest(secret));
-}
-
 const flag = (value: string | string[] | undefined) => ['1', 'true'].includes(first(value) ?? '');
 
 export default async function handler(req: Req, res: Res): Promise<void> {
@@ -249,7 +240,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       res.setHeader('Allow', 'GET, POST');
       throw new HttpError(405, 'Method not allowed.');
     }
-    if (!authorized(first(req.headers.authorization), process.env.NOTIFY_SECRET)) {
+    if (!isCronAuthorized(first(req.headers.authorization))) {
       throw new HttpError(401, 'Unauthorized.');
     }
     const slot = first(req.query?.slot);

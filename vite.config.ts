@@ -2,7 +2,7 @@ import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /** The serverless functions in /api (Vercel) that `npm run dev` serves too. */
-const API_ROUTES = new Set(['login', 'employees', 'notify']);
+const API_ROUTES = new Set(['login', 'employees', 'notify', 'daily-reset']);
 
 interface ApiResponse {
   status(code: number): ApiResponse;
@@ -21,7 +21,7 @@ type ApiHandler = (
 ) => Promise<void>;
 
 /**
- * Local stand-in for Vercel: serves /api/login, /api/employees and /api/notify from the same files Vercel deploys, so the
+ * Local stand-in for Vercel: serves the /api functions (login, employees, notify, daily-reset) from the same files Vercel deploys, so the
  * whole app (sign-in included) runs with `npm run dev`. The functions are loaded through Vite's SSR loader, so an
  * edit in /api is picked up on the next request. Dev server only – it is not part of the build.
  */

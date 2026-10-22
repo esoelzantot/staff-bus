@@ -11,9 +11,9 @@
  * skipped, so nothing is counted twice.
  */
 import { adminDb, projectId } from './lib/admin';
-import { commitUnits, loadEmployeeStates, seedUnit } from './lib/attendance';
-import { cairoNow } from './lib/cairoTime';
-import { planSnapshot } from './lib/dailyReset';
+import { commitUnits, loadEmployeeStates, seedUnit } from '../api/_lib/attendance.js';
+import { cairoNow } from '../api/_lib/cairoTime.js';
+import { planSnapshot } from '../api/_lib/dailyReset.js';
 
 const dryRun = process.argv.includes('--dry-run');
 

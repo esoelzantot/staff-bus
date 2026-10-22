@@ -1,7 +1,8 @@
 {
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "functions": {
-    "api/notify.ts": { "maxDuration": 30 }
+    "api/notify.ts": { "maxDuration": 30 },
+    "api/daily-reset.ts": { "maxDuration": 60 }
   },
   "headers": [
     {

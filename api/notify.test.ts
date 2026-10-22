@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { isCronAuthorized as authorized } from './_lib/core';
 import {
-  authorized,
   buildPayload,
   handleNotify,
   isPushEndpoint,

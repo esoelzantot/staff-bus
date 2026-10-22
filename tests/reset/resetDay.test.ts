@@ -8,7 +8,7 @@
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { resetAllBuses, resetBus } from '../../scripts/lib/resetDay';
+import { resetAllBuses, resetBus, runDailyReset } from '../../api/_lib/resetDay.js';
 
 const PROJECT = 'demo-staff-bus-reset';
 const TODAY = '2026-10-22';
@@ -168,5 +168,53 @@ describe('when something is wrong', () => {
 
   it('a bus that no longer exists is reported as gone', async () => {
     expect(await resetBus(db, 'nope', TODAY)).toEqual({ busId: 'nope', status: 'gone' });
+  });
+});
+
+describe('runDailyReset (what /api/daily-reset and the GitHub backup call)', () => {
+  // Cairo = UTC+3 until the end of October 2026
+  const at = (cairoTime: string) => new Date(`${TODAY}T${cairoTime}:00+03:00`);
+  const meta = async () => (await db.doc('meta/dailyReset').get()).data();
+
+  beforeEach(() => seed({ M1: { type: 'main', going: 'out', returning: 'out', goingInCount: 4 } }));
+
+  it('00:05: resets the day and remembers it', async () => {
+    const outcome = await runDailyReset(db, { now: at('00:05'), source: 'vercel' });
+    expect(outcome).toMatchObject({ status: 'done', day: TODAY, seeded: 1 });
+    expect(await employee('M1')).toMatchObject({ goingStatus: 'in', goingInCount: 5 });
+    expect(await meta()).toMatchObject({ lastResetDate: TODAY, employeesChanged: 1, source: 'vercel' });
+  });
+
+  it('a second scheduler (or a retry) the same night does nothing', async () => {
+    await runDailyReset(db, { now: at('00:05'), source: 'vercel' });
+    await db.doc('employees/M1').update({ goingStatus: 'out' }); // the employee chose OUT afterwards
+    const again = await runDailyReset(db, { now: at('02:40'), source: 'github' });
+    expect(again).toEqual({ status: 'skipped', day: TODAY, reason: 'already-done' });
+    expect(await employee('M1')).toMatchObject({ goingStatus: 'out', goingInCount: 5 });
+    expect(await meta()).toMatchObject({ source: 'vercel' });
+  });
+
+  it('never resets a day in progress (06:00 and later)', async () => {
+    expect(await runDailyReset(db, { now: at('07:30') })).toMatchObject({ status: 'skipped', reason: 'outside-window' });
+    expect(await employee('M1')).toMatchObject({ goingStatus: 'out', goingInCount: 4 });
+  });
+
+  it('…unless forced (manual run)', async () => {
+    expect(await runDailyReset(db, { now: at('07:30'), force: true })).toMatchObject({ status: 'done' });
+  });
+
+  it('a failed bus leaves the day open, so the next call retries', async () => {
+    await db.doc('buses/bus2').set({ route: 'R2', busNumber: 'B2', capacity: 0, goingCount: 0, returningCount: 0 });
+    expect(await runDailyReset(db, { now: at('00:05') })).toMatchObject({ status: 'failed' });
+    expect(await meta()).toBeUndefined();
+    await db.doc('buses/bus2').update({ capacity: 5 }); // fixed
+    expect(await runDailyReset(db, { now: at('01:05') })).toMatchObject({ status: 'done', seeded: 0 });
+    expect(await meta()).toMatchObject({ lastResetDate: TODAY });
+  });
+
+  it('a dry run writes nothing, not even the "done" mark', async () => {
+    expect(await runDailyReset(db, { now: at('00:05'), dryRun: true })).toMatchObject({ status: 'dry-run', seeded: 1 });
+    expect(await meta()).toBeUndefined();
+    expect(await employee('M1')).toMatchObject({ goingStatus: 'out' });
   });
 });

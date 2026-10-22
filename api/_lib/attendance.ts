@@ -9,7 +9,7 @@ import {
   type QueryDocumentSnapshot,
   type Transaction,
 } from 'firebase-admin/firestore';
-import type { EmployeePlan, EmployeeState } from './dailyReset';
+import type { EmployeePlan, EmployeeState } from './dailyReset.js';
 
 /** What a write needs – both a WriteBatch and a Transaction provide it. */
 export interface Writer {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cairoNow } from './cairoTime';
+import { cairoNow } from './cairoTime.js';
 
 describe('cairoNow', () => {
   it('uses UTC+3 in summer and UTC+2 in winter', () => {
