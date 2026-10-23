@@ -23,29 +23,14 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import webpush from 'web-push';
 import { cairoDay, cairoWeekday, getAdmin, HttpError, isCronAuthorized, type Admin } from './_lib/core.js';
+import { isPushEndpoint } from './_lib/push.js';
+
+export { isPushEndpoint };
 
 export type Slot = 'going' | 'returning';
 
 /** Sunday … Thursday (0 … 4): the bus runs on working days only. */
 export const WORKING_DAYS = [0, 1, 2, 3, 4];
-
-/** Push services a subscription may point at (the server must not POST to arbitrary URLs). */
-const PUSH_HOSTS = [
-  /^fcm\.googleapis\.com$/,
-  /(^|\.)push\.services\.mozilla\.com$/,
-  /(^|\.)push\.apple\.com$/,
-  /(^|\.)notify\.windows\.com$/,
-];
-
-export function isPushEndpoint(endpoint: unknown): endpoint is string {
-  if (typeof endpoint !== 'string' || endpoint.length > 1024) return false;
-  try {
-    const url = new URL(endpoint);
-    return url.protocol === 'https:' && PUSH_HOSTS.some((re) => re.test(url.hostname));
-  } catch {
-    return false;
-  }
-}
 
 export interface StoredSubscription {
   id: string;
@@ -73,6 +58,8 @@ export interface NotifyDeps {
   now(): Date;
   /** Marks the slot as sent for the day. false = it was already sent. */
   claimSlot(day: string, slot: Slot): Promise<boolean>;
+  /** Gives the slot back (nothing could be delivered), so a later call can try again. */
+  releaseSlot(day: string, slot: Slot): Promise<void>;
   listSubscriptions(): Promise<StoredSubscription[]>;
   getEmployees(ids: string[]): Promise<Map<string, EmployeeInfo>>;
   /** Rejects with { statusCode } when the push service refuses. */
@@ -95,24 +82,36 @@ export interface NotifyResult {
   sent: number;
   failed: number;
   removed: number;
+  /** Nothing could be delivered: the slot was given back so the scheduler (or a manual call) can retry. */
+  released?: boolean;
 }
 
-const STATUS = { in: 'IN', out: 'OUT' } as const;
+/** U+200F RIGHT-TO-LEFT MARK – keeps a Latin word (name, IN / OUT) from flipping the punctuation around it. */
+const RLM = '\u200F';
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+/** IN / OUT as in the app, isolated with RLM marks so the Arabic line around it keeps its order. */
+const statusLabel = (status: 'in' | 'out') => (status === 'in' ? `${RLM}IN${RLM} ✅` : `${RLM}OUT${RLM} ❌`);
 
+/**
+ * Every line starts with an Arabic word: Android lays a notification out by its FIRST letter (it ignores the "dir"
+ * option), so a body starting with a Latin name came out scrambled. The Latin words (the name, IN / OUT) are
+ * wrapped in RLM marks so they stay in place inside the Arabic sentence.
+ */
 export function buildPayload(slot: Slot, employee: EmployeeInfo): Payload {
-  const who = firstName(employee.name);
+  const who = `${RLM}${firstName(employee.name)}${RLM}`;
   if (slot === 'going') {
+    const status = statusLabel(employee.goingStatus);
     return {
-      title: '🚌 الذهاب – صباح الخير',
-      body: `${who}، هتركب الأتوبيس النهارده؟ حالتك دلوقتي ${STATUS[employee.goingStatus]}. افتح التطبيق وحدّد IN أو OUT للذهاب.`,
+      title: '🚌 الذهاب',
+      body: [`صباح الخير يا ${who}، هتركب الأتوبيس النهارده؟`, `اختيارك دلوقتي: ${status}`, 'لو عايز تغيّره افتح التطبيق.'].join('\n'),
       tag: 'reminder-going',
       url: '/',
     };
   }
+  const status = statusLabel(employee.returningStatus);
   return {
     title: '🚌 العودة',
-    body: `${who}، هترجع بالأتوبيس النهارده؟ حالتك دلوقتي ${STATUS[employee.returningStatus]}. افتح التطبيق وحدّد IN أو OUT للعودة.`,
+    body: [`مساء الخير يا ${who}، هترجع بالأتوبيس النهارده؟`, `اختيارك دلوقتي: ${status}`, 'لو عايز تغيّره افتح التطبيق.'].join('\n'),
     tag: 'reminder-returning',
     url: '/',
   };
@@ -158,6 +157,14 @@ export async function handleNotify(deps: NotifyDeps, options: NotifyOptions): Pr
 
   if (gone.length > 0) await deps.removeSubscriptions(gone);
   result.removed = gone.length;
+
+  // Every send failed for a reason other than dead devices (push service down, wrong VAPID keys…): do not use up
+  // today's slot, or nobody would get today's reminder at all.
+  const stillValid = live.length - (gone.length - dead.length);
+  if (!options.force && result.sent === 0 && stillValid > 0) {
+    await deps.releaseSlot(day, options.slot);
+    result.released = true;
+  }
   return result;
 }
 
@@ -188,6 +195,9 @@ export function makeDeps(a: Admin): NotifyDeps {
         if ((err as { code?: number }).code === 6) return false; // ALREADY_EXISTS
         throw err;
       }
+    },
+    releaseSlot: async (day, slot) => {
+      await a.db.collection('meta').doc(`notify_${day}_${slot}`).delete();
     },
     listSubscriptions: async () =>
       (await a.db.collection('pushSubscriptions').get()).docs.map((d) => ({

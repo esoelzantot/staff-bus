@@ -116,14 +116,20 @@ Do the steps in this order so nobody is locked out in between:
 
 Every working day (Sunday – Thursday) each employee who turned the reminders on gets:
 
-* **07:00** – "🚌 الذهاب – صباح الخير … هتركب الأتوبيس النهارده؟" with their current Going status
-* **16:00** – "🚌 العودة … هترجع بالأتوبيس النهارده؟" with their current Returning status
+* **07:00** – "🚌 الذهاب: صباح الخير يا Ahmed، هتركب الأتوبيس النهارده؟ اختيارك دلوقتي: IN ✅"
+* **16:00** – "🚌 العودة: مساء الخير يا Ahmed، هترجع بالأتوبيس النهارده؟ اختيارك دلوقتي: OUT ❌"
+
+Every line starts with an Arabic word (Android lays a notification out by its first letter); the Latin words (the
+name, IN / OUT) are wrapped in right-to-left marks so they stay in place.
 
 Tapping the notification opens the app. How it works:
 
 * **Employee screen → "التنبيهات اليومية" → فعّل التنبيهات.** The browser asks for permission, the device subscribes
   (standard Web Push, VAPID) and `pushSubscriptions/{id}` stores it (one document per device; only the employee can
-  read / change it). "إيقاف التنبيهات" and "تغيير الموظف" remove it from that device.
+  read / change it). **The choice is kept**: the reminders keep arriving whether the app is open or closed and also
+  after "تغيير الموظف", until the employee taps "إيقاف التنبيهات". On a shared phone the last employee who turned
+  them on gets them. If the browser renews the subscription by itself, `public/sw.js` hands the new one to
+  `api/push-renew.ts`, so the reminders do not stop silently.
 * **iPhone / iPad:** Web Push works only for an app on the home screen (iOS 16.4+): Safari → Share → "Add to Home
   Screen", open it from the icon, then turn the reminders on. The card explains this on an iPhone.
 * **Sending:** `api/notify.ts` (`?slot=going` / `?slot=returning`) sends to every stored device, at most once per slot

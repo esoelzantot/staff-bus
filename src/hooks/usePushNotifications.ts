@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { disablePush, enablePush, getPushState, syncPush, type PushOwner, type PushState } from '../services/pushService';
+import { disablePush, enablePush, getPushState, type PushOwner, type PushState } from '../services/pushService';
 import { toAppError } from '../utils/errors';
 
-/** State + actions of the daily reminders on THIS device for the signed-in employee. */
+/**
+ * State + actions of the daily reminders on THIS device for the signed-in employee. Opening the screen re-saves an
+ * existing subscription for this employee (see getPushState), so a choice made once stays on.
+ */
 export function usePushNotifications(owner: PushOwner | null) {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -10,30 +13,36 @@ export function usePushNotifications(owner: PushOwner | null) {
   const uid = owner?.uid;
   const employeeId = owner?.employeeId;
 
+  const refresh = useCallback(
+    () => getPushState(uid && employeeId ? { uid, employeeId } : undefined),
+    [uid, employeeId],
+  );
+
   useEffect(() => {
     let alive = true;
-    void getPushState().then((s) => {
+    void refresh().then((s) => {
       if (alive) setState(s);
     });
-    // keep the stored subscription current (renewed by the browser, or another employee signed in here before)
-    if (uid && employeeId) void syncPush({ uid, employeeId });
     return () => {
       alive = false;
     };
-  }, [uid, employeeId]);
+  }, [refresh]);
 
-  const run = useCallback(async (action: () => Promise<void>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-    } catch (err) {
-      setError(toAppError(err).message);
-    } finally {
-      setState(await getPushState());
-      setBusy(false);
-    }
-  }, []);
+  const run = useCallback(
+    async (action: () => Promise<void>) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await action();
+      } catch (err) {
+        setError(toAppError(err).message);
+      } finally {
+        setState(await refresh());
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
 
   const enable = useCallback(
     () => (uid && employeeId ? run(() => enablePush({ uid, employeeId })) : Promise.resolve()),

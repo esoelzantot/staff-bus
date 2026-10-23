@@ -6,6 +6,10 @@ import { AppError, makeError, toAppError } from '../utils/errors';
  * Daily reminders (Web Push): 07:00 "Going IN / OUT?" and 16:00 "Returning IN / OUT?", Sunday – Thursday.
  * This device subscribes with the browser's push service; the subscription is stored in
  * pushSubscriptions/{id} and /api/notify sends to it. Nothing is sent from the browser itself.
+ *
+ * The choice is PERSISTENT: once an employee turns the reminders on, they keep arriving on this device whether
+ * the app is open or closed, and also after "تغيير الموظف" (signing out) – until the employee taps
+ * "إيقاف التنبيهات", or another employee turns them on for themselves on the same device.
  */
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -21,6 +25,8 @@ export type PushState =
   /** The user blocked notifications for the site. */
   | 'denied'
   | 'off'
+  /** This device receives the reminders of ANOTHER employee (shared phone); "فعّل" moves them to the current one. */
+  | 'other-user'
   | 'on';
 
 export interface PushOwner {
@@ -68,14 +74,32 @@ async function save(owner: PushOwner, subscription: PushSubscription): Promise<v
   });
 }
 
-export async function getPushState(): Promise<PushState> {
+const isPermissionDenied = (err: unknown) => toAppError(err).code === 'permission-denied';
+
+/**
+ * The reminders' state on this device for `owner`. When the device is subscribed, the subscription is saved
+ * again for the signed-in employee: it keeps pushSubscriptions current (the browser may have renewed it, or the
+ * server removed it after a failed send) and tells whether it belongs to this employee or to a colleague
+ * (the rules only let the owner write it).
+ */
+export async function getPushState(owner?: PushOwner): Promise<PushState> {
   if (!VAPID_PUBLIC_KEY) return 'not-configured';
   if (isIos() && !isStandalone()) return 'needs-install';
   if (!hasPushApis()) return 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
   if (Notification.permission !== 'granted') return 'off';
-  const existing = await navigator.serviceWorker.getRegistration('/sw.js');
-  return (await existing?.pushManager.getSubscription()) ? 'on' : 'off';
+  const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+  const subscription = await reg?.pushManager.getSubscription();
+  if (!subscription) return 'off';
+  if (!owner) return 'on';
+  try {
+    await save(owner, subscription);
+    return 'on';
+  } catch (err) {
+    if (isPermissionDenied(err)) return 'other-user';
+    console.warn('Reminder subscription was not refreshed', err);
+    return 'on'; // offline / transient: the stored subscription is still there
+  }
 }
 
 /**
@@ -94,7 +118,7 @@ export async function enablePush(owner: PushOwner): Promise<void> {
     try {
       await save(owner, subscription);
     } catch (err) {
-      if (!(toAppError(err).code === 'permission-denied')) throw err;
+      if (!isPermissionDenied(err)) throw err;
       await subscription.unsubscribe();
       subscription = await subscribe();
       await save(owner, subscription);
@@ -104,22 +128,7 @@ export async function enablePush(owner: PushOwner): Promise<void> {
   }
 }
 
-/**
- * Re-saves this device's subscription when the app opens (the browser may have renewed it, or the employee signed
- * in again). Silent: never asks for permission, never throws.
- */
-export async function syncPush(owner: PushOwner): Promise<void> {
-  try {
-    if ((await getPushState()) !== 'on') return;
-    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
-    const subscription = await reg?.pushManager.getSubscription();
-    if (subscription) await save(owner, subscription);
-  } catch (err) {
-    console.warn('Reminder subscription was not refreshed', err);
-  }
-}
-
-/** Turns the reminders off for this device (also used by "تغيير الموظف", so the next person gets none). */
+/** Turns the reminders off for this device ("إيقاف التنبيهات" – the only thing that does). */
 export async function disablePush(): Promise<void> {
   if (!hasPushApis()) return;
   const reg = await navigator.serviceWorker.getRegistration('/sw.js');

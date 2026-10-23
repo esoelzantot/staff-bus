@@ -15,7 +15,10 @@ export function ReminderSettings({ owner }: { owner: PushOwner }) {
   let text: string;
   switch (push.state) {
     case 'on':
-      text = `التنبيهات مفعّلة على الجهاز ده: هنفكّرك ${SCHEDULE}.`;
+      text = `التنبيهات مفعّلة على الجهاز ده: هنفكّرك ${SCHEDULE}. هتفضل شغالة حتى لو قفلت التطبيق أو عملت تغيير الموظف، لحد ما توقفها من هنا.`;
+      break;
+    case 'other-user':
+      text = `التنبيهات على الجهاز ده مفعّلة لموظف تاني. اضغط «فعّل التنبيهات» علشان توصلك إنت بدله: ${SCHEDULE}.`;
       break;
     case 'off':
       text = `فعّل التنبيهات علشان نفكّرك تحدد IN أو OUT كل يوم: ${SCHEDULE}.`;
@@ -40,9 +43,9 @@ export function ReminderSettings({ owner }: { owner: PushOwner }) {
       <ErrorBanner message={push.error} onDismiss={push.clearError} />
       <p className="tracker__status">{text}</p>
 
-      {(push.state === 'off' || push.state === 'on') && (
+      {(push.state === 'off' || push.state === 'other-user' || push.state === 'on') && (
         <div className="tracker__actions">
-          {push.state === 'off' ? (
+          {push.state !== 'on' ? (
             <button type="button" className="btn btn--primary" disabled={push.busy} onClick={() => void push.enable()}>
               {push.busy ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiBell aria-hidden="true" />}
               فعّل التنبيهات

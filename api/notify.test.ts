@@ -41,6 +41,9 @@ function fakeDeps(options: {
       claimed.add(key);
       return true;
     },
+    releaseSlot: async (day, slot) => {
+      claimed.delete(`${day}_${slot}`);
+    },
     listSubscriptions: async () => options.subscriptions,
     getEmployees: async (ids) =>
       new Map(ids.filter((id) => options.employees[id]).map((id) => [id, options.employees[id]])),
@@ -70,7 +73,7 @@ describe('handleNotify', () => {
     expect(result).toMatchObject({ day: '2026-10-25', sent: 3, failed: 0, subscriptions: 3 });
     expect(sent.map((s) => s.id)).toEqual(['a1', 'a2', 's1']);
     expect(sent[0].payload.body).toContain('Ahmed');
-    expect(sent[0].payload.body).toContain('IN'); // Ahmed is IN for going
+    expect(sent[0].payload.body).toContain('IN\u200F ✅'); // Ahmed is IN for going
   });
 
   it('16:00: the Returning reminder, with the returning status', async () => {
@@ -81,7 +84,7 @@ describe('handleNotify', () => {
     });
     await handleNotify(deps, { slot: 'returning' });
     expect(sent[0].payload).toMatchObject({ title: '🚌 العودة', tag: 'reminder-returning' });
-    expect(sent[0].payload.body).toContain('حالتك دلوقتي IN');
+    expect(sent[0].payload.body).toContain('IN\u200F ✅'); // Sara is IN for returning
   });
 
   it('Friday and Saturday: nothing is sent', async () => {
@@ -157,6 +160,68 @@ describe('helpers', () => {
   });
 
   it('the reminder uses the first name only', () => {
-    expect(buildPayload('going', ahmed).body.startsWith('Ahmed،')).toBe(true);
+    expect(buildPayload('going', ahmed).body).toContain('Ahmed');
+    expect(buildPayload('going', ahmed).body).not.toContain('Mohamed');
+  });
+});
+
+describe('the reminder text reads correctly right-to-left', () => {
+  const RLM = '\u200F';
+  const all = [
+    buildPayload('going', ahmed),
+    buildPayload('going', sara),
+    buildPayload('returning', ahmed),
+    buildPayload('returning', sara),
+  ];
+
+  it('every line starts with an Arabic word (Android lays the text out by its first letter)', () => {
+    for (const p of all) for (const line of p.body.split('\n')) expect(line).toMatch(/^[؀-ۿ]/);
+  });
+
+  it('IN / OUT appear only as the status, wrapped in right-to-left marks', () => {
+    for (const p of all) {
+      const bare = p.body.replace(/\u200F(IN|OUT)\u200F/g, '');
+      expect(bare).not.toMatch(/\b(IN|OUT)\b/);
+    }
+  });
+
+  it('wraps a Latin name in right-to-left marks so the punctuation stays in place', () => {
+    expect(buildPayload('going', ahmed).body).toContain(`${RLM}Ahmed${RLM}،`);
+  });
+
+  it('shows the current status of that direction as IN / OUT', () => {
+    expect(buildPayload('going', ahmed).body).toContain(`اختيارك دلوقتي: ${RLM}IN${RLM} ✅`);
+    expect(buildPayload('going', sara).body).toContain(`اختيارك دلوقتي: ${RLM}OUT${RLM} ❌`);
+    expect(buildPayload('returning', ahmed).body).toContain(`اختيارك دلوقتي: ${RLM}OUT${RLM} ❌`);
+    expect(buildPayload('returning', sara).body).toContain(`اختيارك دلوقتي: ${RLM}IN${RLM} ✅`);
+  });
+});
+
+describe('a send that reaches nobody does not use up the day', () => {
+  it('every device failed (push service down / wrong keys): the slot is given back for a retry', async () => {
+    const { deps, sent } = fakeDeps({
+      now: SUNDAY_7AM,
+      subscriptions: [sub('a1', 'EMP1'), sub('a2', 'EMP1')],
+      employees: { EMP1: ahmed },
+      failures: { a1: 500, a2: 401 },
+    });
+    expect(await handleNotify(deps, { slot: 'going' })).toMatchObject({ sent: 0, released: true });
+    // the retry is allowed and works once the problem is fixed
+    const retry = fakeDeps({ now: SUNDAY_7AM, subscriptions: [sub('a1', 'EMP1')], employees: { EMP1: ahmed } });
+    retry.deps.claimSlot = deps.claimSlot;
+    expect(await handleNotify(retry.deps, { slot: 'going' })).toMatchObject({ sent: 1 });
+    expect(sent).toHaveLength(0);
+  });
+
+  it('only dead devices (all 410): nothing to retry, the slot stays used', async () => {
+    const { deps } = fakeDeps({
+      now: SUNDAY_7AM,
+      subscriptions: [sub('a1', 'EMP1')],
+      employees: { EMP1: ahmed },
+      failures: { a1: 410 },
+    });
+    const result = await handleNotify(deps, { slot: 'going' });
+    expect(result.released).toBeUndefined();
+    expect(await handleNotify(deps, { slot: 'going' })).toMatchObject({ skipped: 'already-sent' });
   });
 });
