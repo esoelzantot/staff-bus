@@ -33,7 +33,7 @@ async function main() {
   // ── buses ──────────────────────────────────────────────────────────────
   const busSnap = await adminDb.collection('buses').get();
   const buses = new Map(busSnap.docs.map((d) => [d.id, { capacity: d.data().capacity as number, route: d.data().route as string }]));
-  if (buses.size === 0) fail(['لا يوجد أتوبيس في المشروع. أنشئه الأول:', '  npm run create-user -- bus <busId> "<Route>" "<Bus number>" 13']);
+  if (buses.size === 0) fail(['لا يوجد أتوبيس في المشروع. أنشئه الأول:', '  npm run create-user -- bus <busId> "<Route>" "<Bus number>" 14']);
 
   const onlyBus = buses.size === 1 ? [...buses.keys()][0] : null;
   const problems: string[] = [];

@@ -11,7 +11,7 @@
  * skipped, so nothing is counted twice.
  */
 import { adminDb, projectId } from './lib/admin';
-import { commitUnits, loadEmployeeStates, seedUnit } from '../api/_lib/attendance.js';
+import { commitUnits, loadEmployeeStates, resetUnit } from '../api/_lib/attendance.js';
 import { cairoNow } from '../api/_lib/cairoTime.js';
 import { planSnapshot } from '../api/_lib/dailyReset.js';
 
@@ -30,7 +30,7 @@ async function main() {
   );
   if (dryRun || plans.length === 0) return console.log(dryRun ? 'Dry run – nothing written.' : 'Nothing to do.');
 
-  await commitUnits(adminDb, plans.map((p) => seedUnit(adminDb, p, today)));
+  await commitUnits(adminDb, plans.map((p) => resetUnit(adminDb, p, today)));
   console.log('Done.');
 }
 

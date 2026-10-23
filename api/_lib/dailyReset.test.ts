@@ -7,92 +7,101 @@ const e = (
   going: 'in' | 'out',
   returning: 'in' | 'out',
   hasRecordToday = false,
-): EmployeeState => ({ id, type, goingStatus: going, returningStatus: returning, hasRecordToday });
+  tally = 5,
+): EmployeeState => ({
+  id,
+  type,
+  goingStatus: going,
+  returningStatus: returning,
+  hasRecordToday,
+  goingInCount: tally,
+  returningInCount: tally,
+});
 
-describe('planBusReset', () => {
-  it('starts main employees IN (and counts the day), waiting employees OUT (no day)', () => {
-    const plan = planBusReset(13, [e('m1', 'main', 'out', 'in'), e('w1', 'waiting', 'in', 'out')]);
-    expect(plan).toEqual({
-      employees: [
-        { id: 'm1', seed: true, going: 'in', returning: 'in', goingTally: 1, returningTally: 1 },
-        { id: 'w1', seed: true, going: 'out', returning: 'out', goingTally: 0, returningTally: 0 },
-      ],
-      goingCount: 1,
-      returningCount: 1,
-    });
-  });
+const plan = (capacity: number, employees: EmployeeState[]) => {
+  const p = planBusReset(capacity, employees);
+  if ('error' in p) throw new Error(p.error);
+  return p;
+};
+const of = (p: ReturnType<typeof plan>, id: string) => p.employees.find((x) => x.id === id)!;
 
-  it('every employee gets a record for the new day, even when nothing changed', () => {
-    const plan = planBusReset(13, [e('m1', 'main', 'in', 'in'), e('w1', 'waiting', 'out', 'out')]);
-    if ('error' in plan) throw new Error(plan.error);
-    expect(plan.employees.every((p) => p.seed)).toBe(true);
-  });
-
-  it("never counts a day twice: an employee with today's record is left untouched", () => {
-    const plan = planBusReset(13, [e('m1', 'main', 'out', 'in', true), e('m2', 'main', 'in', 'in')]);
-    if ('error' in plan) throw new Error(plan.error);
-    expect(plan.employees[0]).toEqual({
-      id: 'm1',
-      seed: false,
-      going: 'out',
-      returning: 'in',
-      goingTally: 0,
-      returningTally: 0,
-    });
-    // the bus counters follow the real statuses (m1 is OUT for going, so only m2 counts)
-    expect(plan.goingCount).toBe(1);
-    expect(plan.returningCount).toBe(2);
-  });
-
-  it('a waiting employee who took a seat after midnight gives it back when the main employees need it', () => {
-    const early = { ...e('w1', 'waiting', 'in', 'out', true), changedAt: 100 };
-    const plan = planBusReset(2, [e('m1', 'main', 'out', 'out'), e('m2', 'main', 'out', 'out'), early]);
-    if ('error' in plan) throw new Error(plan.error);
-    expect(plan.employees[2]).toEqual({
-      id: 'w1',
-      seed: false,
-      bumped: true,
-      going: 'out',
-      returning: 'out',
-      goingTally: -1, // the day is taken back
-      returningTally: 0,
-    });
-    expect(plan.goingCount).toBe(2);
-  });
-
-  it('…the most recent first, and only as many as needed', () => {
-    const plan = planBusReset(3, [
+describe('planBusReset – the rule: every main IN / IN, every waiting OUT / OUT', () => {
+  it('whatever their statuses were yesterday', () => {
+    const p = plan(14, [
       e('m1', 'main', 'out', 'out'),
-      e('m2', 'main', 'out', 'out'),
-      { ...e('w1', 'waiting', 'in', 'out', true), changedAt: 100 },
-      { ...e('w2', 'waiting', 'in', 'out', true), changedAt: 200 },
+      e('m2', 'main', 'in', 'out'),
+      e('w1', 'waiting', 'in', 'in'),
+      e('w2', 'waiting', 'out', 'in'),
     ]);
-    if ('error' in plan) throw new Error(plan.error);
-    expect(plan.employees.find((p) => p.id === 'w2')).toMatchObject({ bumped: true, going: 'out' });
-    expect(plan.employees.find((p) => p.id === 'w1')).toMatchObject({ going: 'in' });
-    expect(plan.employees.find((p) => p.id === 'w1')?.bumped).toBeUndefined();
-    expect(plan.goingCount).toBe(3);
+    for (const id of ['m1', 'm2']) expect(of(p, id)).toMatchObject({ going: 'in', returning: 'in' });
+    for (const id of ['w1', 'w2']) expect(of(p, id)).toMatchObject({ going: 'out', returning: 'out' });
+    expect(p).toMatchObject({ goingCount: 2, returningCount: 2 });
   });
 
-  it("a main employee's own choice since midnight is never changed", () => {
-    const plan = planBusReset(2, [e('m1', 'main', 'out', 'in', true), e('m2', 'main', 'in', 'in')]);
-    if ('error' in plan) throw new Error(plan.error);
-    expect(plan.employees[0]).toMatchObject({ seed: false, going: 'out', returning: 'in' });
-    expect(plan.employees[0].bumped).toBeUndefined();
+  it('…and also for someone who already pressed IN / OUT after midnight (before the reset ran)', () => {
+    const p = plan(14, [e('m1', 'main', 'out', 'out', true), e('w1', 'waiting', 'in', 'out', true)]);
+    expect(of(p, 'm1')).toMatchObject({ going: 'in', returning: 'in', overridden: true, record: 'update' });
+    expect(of(p, 'w1')).toMatchObject({ going: 'out', returning: 'out', overridden: true, record: 'update' });
   });
 
-  it('refuses a roster that does not fit the bus', () => {
-    const plan = planBusReset(2, [e('a', 'main', 'in', 'in'), e('b', 'main', 'in', 'in'), e('c', 'main', 'in', 'in')]);
-    expect('error' in plan).toBe(true);
+  it('every employee gets today\'s record (created, or updated when it exists)', () => {
+    const p = plan(14, [e('m1', 'main', 'in', 'in'), e('w1', 'waiting', 'out', 'out', true)]);
+    expect(of(p, 'm1').record).toBe('create');
+    expect(of(p, 'w1').record).toBe('update');
+  });
+});
+
+describe('planBusReset – IN days are counted exactly once', () => {
+  it('no record yet today: +1 for main employees (Going + Returning), nothing for waiting', () => {
+    const p = plan(14, [e('m1', 'main', 'out', 'out'), e('w1', 'waiting', 'in', 'in')]);
+    expect(of(p, 'm1')).toMatchObject({ goingTally: 1, returningTally: 1, goingInCount: 6, returningInCount: 6 });
+    expect(of(p, 'w1')).toMatchObject({ goingTally: 0, returningTally: 0, goingInCount: 5, returningInCount: 5 });
+  });
+
+  it('a waiting employee who pressed IN after midnight already got today counted → the reset takes it back', () => {
+    // pressed Going IN at 00:20: tally 5 → 6; the reset puts them OUT → back to 5
+    const p = plan(14, [e('w1', 'waiting', 'in', 'out', true, 6)]);
+    expect(of(p, 'w1')).toMatchObject({ goingTally: -1, returningTally: 0, goingInCount: 5, returningInCount: 6 });
+  });
+
+  it('a main employee who pressed OUT after midnight lost today → the reset gives it back', () => {
+    // pressed Going OUT at 00:20 (tally stays as before today); the reset puts them IN → +1
+    const p = plan(14, [e('m1', 'main', 'out', 'in', true, 5)]);
+    expect(of(p, 'm1')).toMatchObject({ goingTally: 1, returningTally: 0, goingInCount: 6, returningInCount: 5 });
+  });
+
+  it('a main employee already IN today (record exists) is not counted twice', () => {
+    const p = plan(14, [e('m1', 'main', 'in', 'in', true, 6)]);
+    expect(of(p, 'm1')).toMatchObject({ goingTally: 0, returningTally: 0, goingInCount: 6, overridden: false });
+  });
+
+  it('a tally never goes below zero (old data)', () => {
+    const p = plan(14, [e('w1', 'waiting', 'in', 'in', true, 0)]);
+    expect(of(p, 'w1')).toMatchObject({ goingInCount: 0, returningInCount: 0 });
+  });
+});
+
+describe('planBusReset – capacity', () => {
+  it('the bus counters are the number of main employees', () => {
+    const p = plan(14, [e('m1', 'main', 'out', 'out'), e('m2', 'main', 'out', 'out'), e('w1', 'waiting', 'in', 'in')]);
+    expect(p).toMatchObject({ goingCount: 2, returningCount: 2 });
+  });
+
+  it('refuses a roster whose main employees alone do not fit the bus', () => {
+    const p = planBusReset(2, [e('a', 'main', 'in', 'in'), e('b', 'main', 'in', 'in'), e('c', 'main', 'in', 'in')]);
+    expect('error' in p).toBe(true);
+  });
+
+  it('a full bus of main employees is fine', () => {
+    expect(plan(2, [e('a', 'main', 'out', 'out'), e('b', 'main', 'out', 'out')])).toMatchObject({ goingCount: 2 });
   });
 });
 
 describe('planSnapshot (one-time start on a running system)', () => {
   it('records today from the CURRENT statuses and counts the directions that are IN', () => {
-    expect(planSnapshot([e('a', 'main', 'in', 'out'), e('b', 'waiting', 'out', 'in')])).toEqual([
-      { id: 'a', seed: true, going: 'in', returning: 'out', goingTally: 1, returningTally: 0 },
-      { id: 'b', seed: true, going: 'out', returning: 'in', goingTally: 0, returningTally: 1 },
-    ]);
+    const [a, b] = planSnapshot([e('a', 'main', 'in', 'out'), e('b', 'waiting', 'out', 'in')]);
+    expect(a).toMatchObject({ going: 'in', returning: 'out', goingInCount: 6, returningInCount: 5, record: 'create' });
+    expect(b).toMatchObject({ going: 'out', returning: 'in', goingInCount: 5, returningInCount: 6, record: 'create' });
   });
 
   it("skips employees that already have today's record (safe to run twice)", () => {

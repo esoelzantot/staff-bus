@@ -2,26 +2,26 @@
  * The daily reset itself, independent of how it is started (Vercel /api/daily-reset called by cron-job.org, the
  * GitHub Actions backup, or the CLI) and of which Firestore it talks to (production or the emulator in tests/reset).
  *
- * New-day state of every bus:
- *   - MAIN employees      → IN for Going and Returning, and today counts as one IN day for both (tally +1)
- *   - WAITING employees   → OUT for Going and Returning, tally unchanged
- *   - daily IN record     → employees/{id}/attendance/{today} created for EVERY employee with those statuses
- *   - bus counters        → = number of employees that are IN
- *   - active direction    → Going (so the morning "وصلنا" / tracking are available)
- *   - shared location     → stopped
+ * New-day state of every bus – the rule, without exceptions:
+ *   - EVERY main employee     → IN for Going and Returning
+ *   - EVERY waiting employee  → OUT for Going and Returning
+ *     (also someone who already pressed IN / OUT after midnight, before the reset ran)
+ *   - IN tallies              → today counted for the main employees, exactly once (see dailyReset.ts tallyDelta)
+ *   - daily IN record         → employees/{id}/attendance/{today} = the start statuses, for everyone
+ *   - bus counters            → = number of main employees
+ *   - active direction        → Going (so the morning "وصلنا" / tracking are available)
+ *   - shared location         → stopped
  *
  * Each bus is reset in ONE transaction: the employees, their records, the bus and its location are read and written
  * together, so an IN / OUT pressed at the same moment can never leave the counters out of step with the statuses
  * (Firestore retries the transaction instead).
  *
- * Main employees come first: a WAITING employee who took a seat after midnight, before the (often late) reset ran,
- * gives it back if the bus would otherwise be over capacity – the most recent first, tally and record corrected.
- *
- * Idempotent: an employee that already has today's record is left untouched – a re-run, or a late run after the
- * person already pressed IN / OUT today, can never count a day twice or overwrite what they chose.
+ * Once per bus per day: the bus remembers the day it was reset (buses/{id}.lastResetDate, written in the same
+ * transaction). Another run the same day – a retry, a second scheduler – leaves it alone, so what people choose
+ * AFTER the reset is never overwritten. Only `force` applies the reset again.
  */
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { MAX_WRITES, loadEmployeeStates, planUnit, type Op } from './attendance.js';
+import { MAX_WRITES, loadEmployeeStates, resetUnit, type Op } from './attendance.js';
 import { RESET_WINDOW_END_HOUR, cairoNow } from './cairoTime.js';
 import { planBusReset } from './dailyReset.js';
 
@@ -29,27 +29,36 @@ export type BusResult =
   | {
       busId: string;
       status: 'done';
-      seeded: number;
-      /** Waiting employees who gave back a seat they took after midnight (main employees come first). */
-      bumped: string[];
-      total: number;
+      /** Employees put back to the start of the day (all of the bus). */
+      employees: number;
+      /** Employees who had already chosen something else after midnight and were put back to the start. */
+      overridden: string[];
       goingCount: number;
       returningCount: number;
     }
+  | { busId: string; status: 'already-done' }
   | { busId: string; status: 'error'; error: string }
   | { busId: string; status: 'gone' };
 
 export interface ResetResult {
   buses: BusResult[];
-  /** Employees that started the new day (statuses + record + tally) in this run. */
-  seeded: number;
+  /** Employees reset in this run. */
+  employees: number;
+  /** Employees whose bus does not exist – nobody can reset them (fix their bus in "إدارة الموظفين"). */
+  unassigned: string[];
   /** At least one bus could not be reset – the day must NOT be marked as done, so the next run retries. */
   failed: boolean;
 }
 
 export const describeError = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-export function resetBus(db: Firestore, busId: string, today: string, dryRun = false): Promise<BusResult> {
+export interface BusOptions {
+  dryRun?: boolean;
+  /** Reset again even if the bus was already reset today. */
+  force?: boolean;
+}
+
+export function resetBus(db: Firestore, busId: string, today: string, options: BusOptions = {}): Promise<BusResult> {
   const busRef = db.collection('buses').doc(busId);
   const locRef = db.collection('busLocations').doc(busId);
 
@@ -57,11 +66,12 @@ export function resetBus(db: Firestore, busId: string, today: string, dryRun = f
     // all reads first (a Firestore transaction requirement)
     const bus = await tx.get(busRef);
     if (!bus.exists) return { busId, status: 'gone' }; // deleted in the meantime
+    if (!options.force && bus.get('lastResetDate') === today) return { busId, status: 'already-done' };
     const docs = (await tx.get(db.collection('employees').where('busId', '==', busId))).docs;
     const states = await loadEmployeeStates(db, docs, today, tx);
     const loc = await tx.get(locRef);
 
-    const capacity = bus.data()?.capacity;
+    const capacity = bus.get('capacity');
     if (typeof capacity !== 'number' || capacity < 1) {
       return { busId, status: 'error', error: `the bus has no valid capacity (${String(capacity)})` };
     }
@@ -71,24 +81,24 @@ export function resetBus(db: Firestore, busId: string, today: string, dryRun = f
     const result: BusResult = {
       busId,
       status: 'done',
-      seeded: plan.employees.filter((p) => p.seed).length,
-      bumped: plan.employees.filter((p) => p.bumped).map((p) => p.id),
-      total: plan.employees.length,
+      employees: plan.employees.length,
+      overridden: plan.employees.filter((p) => p.overridden).map((p) => p.id),
       goingCount: plan.goingCount,
       returningCount: plan.returningCount,
     };
-    if (dryRun) return result;
+    if (options.dryRun) return result;
 
-    const ops: Op[] = plan.employees.flatMap((p) => planUnit(db, p, today));
+    const ops: Op[] = plan.employees.flatMap((p) => resetUnit(db, p, today));
     ops.push((w) =>
       w.update(busRef, {
         goingCount: plan.goingCount,
         returningCount: plan.returningCount,
         activeTripType: 'going',
+        lastResetDate: today,
         updatedAt: FieldValue.serverTimestamp(),
       }),
     );
-    if (loc.exists && loc.data()?.active) {
+    if (loc.exists && loc.get('active')) {
       ops.push((w) => w.update(locRef, { active: false, updatedAt: FieldValue.serverTimestamp() }));
     }
     if (ops.length > MAX_WRITES) {
@@ -100,24 +110,30 @@ export function resetBus(db: Firestore, busId: string, today: string, dryRun = f
 }
 
 /** Resets every bus. A bus that fails does not stop the others; the result says whether any failed. */
-export async function resetAllBuses(db: Firestore, today: string, dryRun = false): Promise<ResetResult> {
+export async function resetAllBuses(db: Firestore, today: string, options: BusOptions = {}): Promise<ResetResult> {
+  const busDocs = (await db.collection('buses').get()).docs;
   const buses: BusResult[] = [];
-  for (const busDoc of (await db.collection('buses').get()).docs) {
+  for (const busDoc of busDocs) {
     try {
-      buses.push(await resetBus(db, busDoc.id, today, dryRun));
+      buses.push(await resetBus(db, busDoc.id, today, options));
     } catch (err) {
       buses.push({ busId: busDoc.id, status: 'error', error: describeError(err) });
     }
   }
+  const busIds = new Set(busDocs.map((b) => b.id));
+  const unassigned = (await db.collection('employees').get()).docs
+    .filter((d) => !busIds.has(String(d.get('busId'))))
+    .map((d) => d.id);
   return {
     buses,
-    seeded: buses.reduce((n, b) => n + (b.status === 'done' ? b.seeded : 0), 0),
+    employees: buses.reduce((n, b) => n + (b.status === 'done' ? b.employees : 0), 0),
+    unassigned,
     failed: buses.some((b) => b.status === 'error'),
   };
 }
 
 export interface RunOptions {
-  /** Ignore the 00:00–05:59 Cairo window and the "already done today" check. */
+  /** Ignore the 00:00–05:59 Cairo window and the "already done today" checks (day and bus). */
   force?: boolean;
   /** Plan only, write nothing. */
   dryRun?: boolean;
@@ -128,13 +144,19 @@ export interface RunOptions {
 
 export type RunOutcome =
   | { status: 'skipped'; day: string; reason: 'outside-window' | 'already-done' }
-  | { status: 'done' | 'dry-run' | 'failed'; day: string; seeded: number; buses: BusResult[] };
+  | {
+      status: 'done' | 'dry-run' | 'failed';
+      day: string;
+      employees: number;
+      unassigned: string[];
+      buses: BusResult[];
+    };
 
 /**
  * One complete daily reset, safe to start any number of times (several schedulers may call it):
  *   - only between 00:00 and 05:59 Cairo, so a day in progress is never reset;
- *   - only once per Cairo day (meta/dailyReset.lastResetDate) – later calls end at once;
- *   - a day where a bus failed is NOT marked as done, so the next call retries it.
+ *   - only once per Cairo day (meta/dailyReset.lastResetDate, and per bus buses/{id}.lastResetDate);
+ *   - a day where a bus failed is NOT marked as done, so the next call retries that bus (the others stay done).
  */
 export async function runDailyReset(db: Firestore, options: RunOptions = {}): Promise<RunOutcome> {
   const { date: day, hour } = cairoNow(options.now);
@@ -145,15 +167,15 @@ export async function runDailyReset(db: Firestore, options: RunOptions = {}): Pr
     if ((await metaRef.get()).data()?.lastResetDate === day) return { status: 'skipped', day, reason: 'already-done' };
   }
 
-  const result = await resetAllBuses(db, day, options.dryRun);
-  const outcome = { day, seeded: result.seeded, buses: result.buses };
+  const result = await resetAllBuses(db, day, { dryRun: options.dryRun, force: options.force });
+  const outcome = { day, employees: result.employees, unassigned: result.unassigned, buses: result.buses };
   if (options.dryRun) return { status: 'dry-run', ...outcome };
   if (result.failed) return { status: 'failed', ...outcome };
 
   await metaRef.set({
     lastResetDate: day,
     resetAt: FieldValue.serverTimestamp(),
-    employeesChanged: result.seeded,
+    employeesReset: result.employees,
     source: options.source ?? 'unknown',
   });
   return { status: 'done', ...outcome };

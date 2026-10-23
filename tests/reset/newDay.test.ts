@@ -151,29 +151,42 @@ describe('a new day: reset at night, then everyone chooses freely', () => {
     await pressGoing('WAIT1', 'in');
 
     const again = await resetAllBuses(admin, today);
-    expect(again.seeded).toBe(0);
+    expect(again.buses[0]).toMatchObject({ status: 'already-done' });
     expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 10 });
     expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'in', goingInCount: 4 });
     expect(await bus()).toMatchObject({ goingCount: 2 });
   });
 
-  it('someone who pressed IN / OUT after midnight but BEFORE the reset ran keeps the choice', async () => {
-    await pressGoing('WAIT2', 'in'); // 00:05 – the reset has not run yet (GitHub is late)
-    await resetAllBuses(admin, today);
-    expect(await employee('WAIT2')).toMatchObject({ goingStatus: 'in' });
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in' });
-    expect(await bus()).toMatchObject({ goingCount: 3 });
+  it('a WAITING employee who pressed IN after midnight, BEFORE the reset, is put back to OUT (tally + record fixed)', async () => {
+    await pressGoing('WAIT2', 'in'); // 00:02 – the reset has not run yet; tally 3 → 4
+    const result = await resetAllBuses(admin, today);
+    expect(result.buses[0]).toMatchObject({ status: 'done', overridden: ['WAIT2'] });
+    expect(await employee('WAIT2')).toMatchObject({ goingStatus: 'out', returningStatus: 'out', goingInCount: 3 });
+    expect(await record('WAIT2')).toMatchObject({ goingStatus: 'out', returningStatus: 'out' });
+    expect(await bus()).toMatchObject({ goingCount: 2, returningCount: 2 });
   });
 
-  it('…unless a waiting employee took a seat the main employees need: it is given back, tally + record fixed', async () => {
-    await admin.doc('buses/bus1').update({ capacity: 2 }); // 2 main employees = a full bus
-    await pressGoing('WAIT2', 'in'); // 00:05: grabs the seat MAIN1 left free yesterday (2 / 2)
-    const result = await resetAllBuses(admin, today);
-    expect(result.failed).toBe(false);
-    expect(result.buses[0]).toMatchObject({ status: 'done', bumped: ['WAIT2'] });
-    expect(await employee('WAIT2')).toMatchObject({ goingStatus: 'out', goingInCount: 3 });
-    expect(await record('WAIT2')).toMatchObject({ goingStatus: 'out' });
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', goingInCount: 11 });
-    expect(await bus()).toMatchObject({ goingCount: 2 });
+  it('a MAIN employee who pressed OUT after midnight, BEFORE the reset, is put back to IN (today counted once)', async () => {
+    await resetAllBuses(admin, '2026-01-01'); // an earlier day: MAIN1 IN, tally 11
+    await admin.doc('employees/MAIN1').update({ goingStatus: 'out', returningStatus: 'out' }); // went OUT yesterday
+    await pressGoing('MAIN1', 'in'); // 00:02 today: IN → tally 12, record today
+    await pressGoing('MAIN1', 'out'); // changed mind: OUT → tally 11
+    await resetAllBuses(admin, today);
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in', goingInCount: 12 });
+    expect(await record('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in' });
+  });
+
+  it('after the reset the rule holds for everyone: all main IN / IN, all waiting OUT / OUT', async () => {
+    // after midnight, before the reset: a waiting employee takes a seat, a main employee goes IN then OUT
+    await pressGoing('WAIT2', 'in');
+    await pressGoing('MAIN1', 'in');
+    await pressGoing('MAIN1', 'out');
+    await resetAllBuses(admin, today);
+    for (const id of ['MAIN1', 'MAIN2']) {
+      expect(await employee(id)).toMatchObject({ goingStatus: 'in', returningStatus: 'in' });
+    }
+    for (const id of ['WAIT1', 'WAIT2']) {
+      expect(await employee(id)).toMatchObject({ goingStatus: 'out', returningStatus: 'out' });
+    }
   });
 });

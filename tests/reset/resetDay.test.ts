@@ -110,17 +110,25 @@ describe('a new day', () => {
     expect((await db.doc('busLocations/bus1').get()).data()).toMatchObject({ active: false });
   });
 
-  it('a second run on the same day changes nothing (no day counted twice)', async () => {
+  it('a second run on the same day leaves the bus alone (choices made after the reset are kept)', async () => {
     await resetAllBuses(db, TODAY);
     // after the reset MAIN1 decides not to go today
     await db.doc('employees/MAIN1').update({ goingStatus: 'out', goingInCount: 5 });
     await db.doc(`employees/MAIN1/attendance/${TODAY}`).update({ goingStatus: 'out' });
 
     const again = await resetAllBuses(db, TODAY);
-    expect(again.seeded).toBe(0);
+    expect(again.buses[0]).toEqual({ busId: 'bus1', status: 'already-done' });
     expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 5, returningInCount: 5 });
     expect(await employee('MAIN2')).toMatchObject({ goingInCount: 8, returningInCount: 8 });
-    expect(await bus()).toMatchObject({ goingCount: 1, returningCount: 2 });
+  });
+
+  it('…unless forced: then the rule is applied again, still counting each day once', async () => {
+    await resetAllBuses(db, TODAY);
+    await db.doc('employees/MAIN1').update({ goingStatus: 'out', goingInCount: 5 }); // pressed OUT
+    await resetAllBuses(db, TODAY, { force: true });
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', goingInCount: 6, returningInCount: 5 });
+    expect(await employee('MAIN2')).toMatchObject({ goingInCount: 8, returningInCount: 8 });
+    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'out', goingInCount: 2 });
   });
 
   it('the next day is counted again, and the history of yesterday stays', async () => {
@@ -132,8 +140,8 @@ describe('a new day', () => {
   });
 
   it('a dry run writes nothing', async () => {
-    const result = await resetAllBuses(db, TODAY, true);
-    expect(result.seeded).toBe(3);
+    const result = await resetAllBuses(db, TODAY, { dryRun: true });
+    expect(result.employees).toBe(3);
     expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 5 });
     expect(await record('MAIN1')).toBeUndefined();
   });
@@ -161,7 +169,7 @@ describe('when something is wrong', () => {
     await db.doc('buses/bus2').set({ route: 'R2', busNumber: 'B2', capacity: 0, goingCount: 0, returningCount: 0 });
     const result = await resetAllBuses(db, TODAY);
     expect(result.failed).toBe(true);
-    expect(result.buses.find((b) => b.busId === 'bus1')).toMatchObject({ status: 'done', seeded: 1 });
+    expect(result.buses.find((b) => b.busId === 'bus1')).toMatchObject({ status: 'done', employees: 1 });
     expect(result.buses.find((b) => b.busId === 'bus2')).toMatchObject({ status: 'error' });
     expect(await employee('M1')).toMatchObject({ goingStatus: 'in', goingInCount: 1 });
   });
@@ -180,9 +188,9 @@ describe('runDailyReset (what /api/daily-reset and the GitHub backup call)', () 
 
   it('00:05: resets the day and remembers it', async () => {
     const outcome = await runDailyReset(db, { now: at('00:05'), source: 'vercel' });
-    expect(outcome).toMatchObject({ status: 'done', day: TODAY, seeded: 1 });
+    expect(outcome).toMatchObject({ status: 'done', day: TODAY, employees: 1 });
     expect(await employee('M1')).toMatchObject({ goingStatus: 'in', goingInCount: 5 });
-    expect(await meta()).toMatchObject({ lastResetDate: TODAY, employeesChanged: 1, source: 'vercel' });
+    expect(await meta()).toMatchObject({ lastResetDate: TODAY, employeesReset: 1, source: 'vercel' });
   });
 
   it('a second scheduler (or a retry) the same night does nothing', async () => {
@@ -208,12 +216,12 @@ describe('runDailyReset (what /api/daily-reset and the GitHub backup call)', () 
     expect(await runDailyReset(db, { now: at('00:05') })).toMatchObject({ status: 'failed' });
     expect(await meta()).toBeUndefined();
     await db.doc('buses/bus2').update({ capacity: 5 }); // fixed
-    expect(await runDailyReset(db, { now: at('01:05') })).toMatchObject({ status: 'done', seeded: 0 });
+    expect(await runDailyReset(db, { now: at('01:05') })).toMatchObject({ status: 'done', employees: 0 });
     expect(await meta()).toMatchObject({ lastResetDate: TODAY });
   });
 
   it('a dry run writes nothing, not even the "done" mark', async () => {
-    expect(await runDailyReset(db, { now: at('00:05'), dryRun: true })).toMatchObject({ status: 'dry-run', seeded: 1 });
+    expect(await runDailyReset(db, { now: at('00:05'), dryRun: true })).toMatchObject({ status: 'dry-run', employees: 1 });
     expect(await meta()).toBeUndefined();
     expect(await employee('M1')).toMatchObject({ goingStatus: 'out' });
   });

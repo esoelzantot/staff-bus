@@ -5,98 +5,85 @@ export interface EmployeeState {
   type: 'main' | 'waiting';
   goingStatus: Status;
   returningStatus: Status;
-  /** Today's IN record (employees/{id}/attendance/{today}) already exists. */
+  /** Today's IN record (employees/{id}/attendance/{today}) already exists – the person pressed IN / OUT today. */
   hasRecordToday: boolean;
-  /** When the employee's statuses last changed (ms) – decides who gives a seat back first (see planBusReset). */
-  changedAt?: number;
+  /** Current IN tallies (number of IN days per direction). */
+  goingInCount?: number;
+  returningInCount?: number;
 }
 
 /** What the reset does for one employee. */
 export interface EmployeePlan {
   id: string;
-  /**
-   * true  = the employee has no record for today yet: write the start-of-day statuses, create today's record
-   *         and add today to the IN tallies;
-   * false = a record exists (the employee already acted since midnight, or an earlier run did this):
-   *         leave everything untouched, so a re-run can never count a day twice.
-   */
-  seed: boolean;
-  /**
-   * true = a WAITING employee who took a seat after midnight, before the reset ran, while the main employees
-   *        (who start the day IN) need it: set back to OUT for that direction, the day taken back from the tally
-   *        (goingTally / returningTally = -1) and today's record updated.
-   */
-  bumped?: boolean;
   /** Statuses the employee has after the reset. */
   going: Status;
   returning: Status;
-  /** Days to add to goingInCount / returningInCount (1 when the day starts IN, -1 when bumped). */
+  /** Days added to goingInCount / returningInCount (+1, 0 or -1 – see tallyDelta). */
   goingTally: number;
   returningTally: number;
+  /** The tallies after the reset (never below zero). */
+  goingInCount: number;
+  returningInCount: number;
+  /** Today's record: 'create' = there is none yet, 'update' = the person already pressed IN / OUT today. */
+  record: 'create' | 'update';
+  /** The person had chosen something else today (after midnight) – the reset put them back to the start. */
+  overridden: boolean;
 }
 
 export type BusResetPlan =
   | { error: string }
   | {
       employees: EmployeePlan[];
-      /** Both bus counters after the reset = number of employees that are IN. */
+      /** Both bus counters after the reset = number of MAIN employees (everyone IN). */
       goingCount: number;
       returningCount: number;
     };
 
-/** Start-of-day status: MAIN employees IN, WAITING employees OUT. */
+/** Start-of-day status: MAIN employees IN, WAITING employees OUT – for Going AND Returning. */
 export const startStatus = (type: EmployeeState['type']): Status => (type === 'main' ? 'in' : 'out');
 
+const isIn = (s: Status) => (s === 'in' ? 1 : 0);
+
 /**
- * Daily start of a bus: every MAIN employee IN (going + returning), every WAITING employee OUT – and one
- * IN-record per person for the new day. Waiting employees must go back to OUT too, otherwise
- * "main back IN" + "waiting still IN" could exceed the capacity.
- * Employees that already have today's record are skipped (see EmployeePlan.seed).
+ * How many IN days a direction gains with the reset.
+ *  - No record today: today has not been counted yet → +1 when the day starts IN.
+ *  - A record today: the person pressed IN / OUT after midnight, and every press already moved the tally
+ *    (OUT → IN +1, IN → OUT -1), so today is counted exactly when the CURRENT status is IN. The reset only
+ *    applies the difference: IN → OUT -1, OUT → IN +1, unchanged 0. A day is never counted twice or lost.
+ */
+const tallyDelta = (current: Status, start: Status, hasRecordToday: boolean) =>
+  hasRecordToday ? isIn(start) - isIn(current) : isIn(start);
+
+/**
+ * Daily start of a bus – the rule, without exceptions:
+ *   every MAIN employee    → IN for Going and Returning
+ *   every WAITING employee → OUT for Going and Returning
+ * whatever anyone chose since midnight; the IN tallies and today's record follow (see tallyDelta).
+ * Refused only when the main employees alone do not fit the bus (a roster problem to fix first).
  */
 export function planBusReset(capacity: number, employees: EmployeeState[]): BusResetPlan {
   const plans: EmployeePlan[] = employees.map((e) => {
-    if (e.hasRecordToday) {
-      return {
-        id: e.id,
-        seed: false,
-        going: e.goingStatus,
-        returning: e.returningStatus,
-        goingTally: 0,
-        returningTally: 0,
-      };
-    }
     const start = startStatus(e.type);
-    const tally = start === 'in' ? 1 : 0;
-    return { id: e.id, seed: true, going: start, returning: start, goingTally: tally, returningTally: tally };
+    const goingTally = tallyDelta(e.goingStatus, start, e.hasRecordToday);
+    const returningTally = tallyDelta(e.returningStatus, start, e.hasRecordToday);
+    return {
+      id: e.id,
+      going: start,
+      returning: start,
+      goingTally,
+      returningTally,
+      goingInCount: Math.max(0, (e.goingInCount ?? 0) + goingTally),
+      returningInCount: Math.max(0, (e.returningInCount ?? 0) + returningTally),
+      record: e.hasRecordToday ? 'update' : 'create',
+      overridden: e.hasRecordToday && (e.goingStatus !== start || e.returningStatus !== start),
+    };
   });
 
-  // Main employees have priority at the start of the day. A waiting employee may already have taken a seat
-  // after midnight (GitHub starts the reset late) – if the bus would be over capacity, those seats are given back,
-  // the most recent first. Main employees' own choices since midnight are never changed.
-  const byId = new Map(employees.map((e) => [e.id, e]));
-  for (const [dir, tally] of [
-    ['going', 'goingTally'],
-    ['returning', 'returningTally'],
-  ] as const) {
-    let count = plans.filter((p) => p[dir] === 'in').length;
-    const giveBack = plans
-      .filter((p) => !p.seed && p[dir] === 'in' && byId.get(p.id)?.type === 'waiting')
-      .sort((a, b) => (byId.get(b.id)?.changedAt ?? 0) - (byId.get(a.id)?.changedAt ?? 0));
-    for (const p of giveBack) {
-      if (count <= capacity) break;
-      p[dir] = 'out';
-      p[tally] = -1;
-      p.bumped = true;
-      count--;
-    }
+  const mains = plans.filter((p) => p.going === 'in').length;
+  if (mains > capacity) {
+    return { error: `عدد الموظفين الأساسيين (${mains}) أكبر من سعة الأتوبيس (${capacity}).` };
   }
-
-  const goingCount = plans.filter((p) => p.going === 'in').length;
-  const returningCount = plans.filter((p) => p.returning === 'in').length;
-  if (goingCount > capacity || returningCount > capacity) {
-    return { error: `عدد الموظفين IN (${Math.max(goingCount, returningCount)}) أكبر من سعة الأتوبيس (${capacity}).` };
-  }
-  return { employees: plans, goingCount, returningCount };
+  return { employees: plans, goingCount: mains, returningCount: mains };
 }
 
 /**
@@ -108,10 +95,13 @@ export function planSnapshot(employees: EmployeeState[]): EmployeePlan[] {
     .filter((e) => !e.hasRecordToday)
     .map((e) => ({
       id: e.id,
-      seed: true,
       going: e.goingStatus,
       returning: e.returningStatus,
-      goingTally: e.goingStatus === 'in' ? 1 : 0,
-      returningTally: e.returningStatus === 'in' ? 1 : 0,
+      goingTally: isIn(e.goingStatus),
+      returningTally: isIn(e.returningStatus),
+      goingInCount: (e.goingInCount ?? 0) + isIn(e.goingStatus),
+      returningInCount: (e.returningInCount ?? 0) + isIn(e.returningStatus),
+      record: 'create',
+      overridden: false,
     }));
 }

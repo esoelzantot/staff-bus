@@ -7,7 +7,7 @@ React + TypeScript + Vite + Firebase (Auth, Firestore, Security Rules) + jsPDF. 
 * **Employees sign in with the Employee ID only** (no e-mail, no password). **Managers / admins** type their ID and then a **PIN** – the PIN field appears on the same screen only when the ID belongs to a management account (there is no separate manager login page).
 * Sign-in goes through the serverless function `api/login.ts`, which checks the ID (and PIN) on the server and returns a Firebase custom token. The browser never holds a password derived from an ID.
 * **Employee ID → employee screen:** the employee sees the bus info, **their own record (the only editable one)**, the **Going list** and **Returning list** (who is IN), and all main / waiting employees in read-only mode.
-* **Manager / admin ID → management dashboard:** main & waiting employees (editable), going/returning switch, live summary `X / 13`, PDF export, arrival tracking. The role is stored on the account, not chosen on screen.
+* **Manager / admin ID → management dashboard:** main & waiting employees (editable), going/returning switch, live summary `X / 14`, PDF export, arrival tracking. The role is stored on the account, not chosen on screen.
 
 ## Requirements
 
@@ -33,7 +33,7 @@ Vercel: add the environment variable **`FIREBASE_SERVICE_ACCOUNT`** (the whole s
 npm run seed   # dev project only
 ```
 
-Creates the bus (النزهة – أ ص 8381 – capacity 13), employees `EMP1001`–`EMP1005` (3 main, 2 waiting) and the manager `MGR001`, whose PIN is `SEED_MANAGER_PIN` (default `dev-manager-2026`, printed by the script – **development only**).
+Creates the bus (النزهة – أ ص 8381 – capacity 14), employees `EMP1001`–`EMP1005` (3 main, 2 waiting) and the manager `MGR001`, whose PIN is `SEED_MANAGER_PIN` (default `dev-manager-2026`, printed by the script – **development only**).
 
 ### Importing the real roster (main + waiting)
 
@@ -48,7 +48,7 @@ Columns: `employeeId,name,type[,busId]` (`type` = `main` | `waiting`; `busId` ma
 ### Production data
 
 ```bash
-npm run create-user -- bus      bus-nozha-01 "النزهة" "أ ص 8381" 13
+npm run create-user -- bus      bus-nozha-01 "النزهة" "أ ص 8381" 14
 npm run create-user -- employee EMP1025 "Ahmed Mohamed" main bus-nozha-01
 npm run create-user -- manager  MGR-k7x2q9f4m1     # asks for a PIN (typed twice, never echoed)
 npm run create-user -- admin    ADM-p3d8v1n6z5
@@ -185,7 +185,7 @@ tests          rules/ (Firestore rules, emulator)       *.test.ts next to the co
 * **وصلنا (arrival):** any employee on the bus can press it (Employee dashboard footer). It exists for the **going direction only**: the button shows while the bus' active direction is *going* and is stored on today's going-trip `busTrips` document (server time + who pressed). It appears live for everyone on the bus and on the manager's arrival section. The first press wins; the employee who pressed it can undo it with the X on the card (and a manager/admin can always reset it). A new day opens a new trip, so the button comes back. **Re-deploy the rules** (`npm run rules:deploy`) after pulling this change.
 * **تتبع الأتوبيس (live tracking):** the first employee on the bus taps "ابدأ مشاركة موقع الأتوبيس"; her phone's GPS position is written to `busLocations/{busId}` (≈ every 5 s while the bus moves, a heartbeat every 15 s when parked) and every colleague on the bus sees it on a live map (Leaflet + OpenStreetMap) whose marker glides smoothly and which follows the bus (drag the map to look around, 🎯 to resume) and can go full screen with a button that opens Google Maps directions to the bus. Only one sharer at a time; a colleague can take over when the sharer stops or her updates are older than 90 s. Sharing stops automatically when the going trip's arrival is recorded, on logout, or via "إيقاف المشاركة". **Limitation:** this is a web app, so the GPS only reports while the sharer's page is open in the foreground (browsers pause it when the screen locks or the tab is in the background). Re-deploy the rules after pulling this change.
 * **Employee management (manager dashboard → "إدارة الموظفين"):** managers can add, edit (name / type / bus) and delete employees. It runs through the serverless function `api/employees.ts` (Admin SDK), which first verifies the caller's Firebase ID token and that `users/{uid}.role` is manager/admin, so the Firestore rules stay strict. Deleting an employee also deletes the login account and fixes the bus counters; adding a *main* employee needs room on the bus (main employees start IN). Setup on Vercel: add the env var `FIREBASE_SERVICE_ACCOUNT` (the service-account JSON) and redeploy. Locally `npm run dev` serves it too (see below); the service-account key is read from `GOOGLE_APPLICATION_CREDENTIALS` in `.env`. Do not use `vercel dev`: the SPA rewrite in `vercel.json` makes it answer 404 for Vite's own files.
-* **Daily reset:** every night at **00:05 Cairo** cron-job.org calls `POST /api/daily-reset` (Vercel function, `api/daily-reset.ts`): main employees → IN (Going + Returning) and counted as an IN day, waiting → OUT (Going + Returning), a daily IN record created for everyone, bus counters recomputed, active direction → Going, shared location stopped. The logic is `api/_lib/resetDay.ts`: one transaction per bus; an employee that already has today's record is never touched again (no day counted twice, a choice made after midnight is kept); main employees come first – a waiting employee who took a seat after midnight gives it back if the bus would be over capacity.
+* **Daily reset:** every night at **00:05 Cairo** cron-job.org calls `POST /api/daily-reset` (Vercel function, `api/daily-reset.ts`): main employees → IN (Going + Returning) and counted as an IN day, waiting → OUT (Going + Returning), a daily IN record created for everyone, bus counters recomputed, active direction → Going, shared location stopped. The logic is `api/_lib/resetDay.ts`, one transaction per bus. **The rule has no exceptions:** every main employee → IN / IN, every waiting employee → OUT / OUT – also someone who already pressed IN / OUT after midnight, before the reset ran (their IN tally is corrected, so a day is never counted twice or lost). Each bus is reset once per day (`buses/{id}.lastResetDate`): another run the same day leaves it alone, so choices made after the reset are kept; only `force=1` applies the rule again.
   * It acts only between 00:00 and 05:59 Cairo and only **once per day** (`meta/dailyReset`), so it is safe to call more than once. A day where a bus failed is not marked as done; the next call retries.
   * **cron-job.org job:** URL `https://staff-bus.vercel.app/api/daily-reset`, schedule `5 0,1 * * *` (00:05 + a retry at 01:05, every day), time zone Africa/Cairo, method POST, header `Authorization: Bearer <NOTIFY_SECRET>` (the same secret as the reminders). It answers 200 (done / skipped) or 500 (a bus failed → cron-job.org e-mails you).
   * **Test:** `curl -X POST -H "Authorization: Bearer <NOTIFY_SECRET>" "https://staff-bus.vercel.app/api/daily-reset?dryRun=1"` (plans, writes nothing); `&force=1` runs it now, outside the window. Locally: `npm run reset-daily -- --dry-run`.

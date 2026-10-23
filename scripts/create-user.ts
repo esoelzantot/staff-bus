@@ -75,7 +75,7 @@ async function main() {
   }
 
   if (kind === 'bus') {
-    const [busId, route, busNumber, capacityArg = '13'] = args;
+    const [busId, route, busNumber, capacityArg = '14'] = args;
     const capacity = Number.parseInt(capacityArg, 10);
     if (!busId || !route || !busNumber || !Number.isInteger(capacity) || capacity < 1) usage();
     // Same pattern as api/employees.ts; the trip ids ({busId}_{day}_{type}) and the Firestore rules rely on it.

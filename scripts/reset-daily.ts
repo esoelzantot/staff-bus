@@ -38,23 +38,38 @@ async function main(): Promise<number> {
   }
 
   const rows = outcome.buses.map((b) => {
-    if (b.status === 'done') {
-      console.log(
-        `Bus ${b.busId}: ${b.seeded}/${b.total} employee(s) start the new day, counters → ${b.goingCount}/${b.returningCount}`,
-      );
-      const note = b.bumped.length > 0 ? ` (seat given back: ${b.bumped.join(', ')})` : '';
-      if (note) annotateNotice(`${TITLE}: bus ${b.busId}`, `Seat given back to the main employees by: ${b.bumped.join(', ')}`);
-      return `| ${b.busId} | ✅${note} | ${b.seeded}/${b.total} | ${b.goingCount} / ${b.returningCount} |`;
+    switch (b.status) {
+      case 'done': {
+        console.log(
+          `Bus ${b.busId}: ${b.employees} employee(s) back to the start of the day, counters → ${b.goingCount}/${b.returningCount}`,
+        );
+        if (b.overridden.length > 0) {
+          annotateNotice(
+            `${TITLE}: bus ${b.busId}`,
+            `Chose IN / OUT after midnight and were put back to the start of the day: ${b.overridden.join(', ')}`,
+          );
+        }
+        const note = b.overridden.length > 0 ? ` (put back: ${b.overridden.join(', ')})` : '';
+        return `| ${b.busId} | ✅${note} | ${b.employees} | ${b.goingCount} / ${b.returningCount} |`;
+      }
+      case 'already-done':
+        console.log(`Bus ${b.busId}: already reset today – left alone.`);
+        return `| ${b.busId} | already reset today | – | – |`;
+      case 'gone':
+        return `| ${b.busId} | deleted during the run | – | – |`;
+      default:
+        annotateError(`${TITLE}: bus ${b.busId} skipped`, b.error);
+        return `| ${b.busId} | ❌ ${b.error} | – | – |`;
     }
-    if (b.status === 'gone') return `| ${b.busId} | deleted during the run | – | – |`;
-    annotateError(`${TITLE}: bus ${b.busId} skipped`, b.error);
-    return `| ${b.busId} | ❌ ${b.error} | – | – |`;
   });
+  if (outcome.unassigned.length > 0) {
+    annotateError(TITLE, `Employees on a bus that does not exist (never reset): ${outcome.unassigned.join(', ')}`);
+  }
   summary(
     [
       `### Daily reset ${outcome.day}${dryRun ? ' (dry run)' : ''}`,
       '',
-      '| Bus | Result | Employees reset | Going / Returning IN |',
+      '| Bus | Result | Employees | Going / Returning IN |',
       '| --- | --- | --- | --- |',
       ...rows,
     ].join('\n'),
@@ -69,8 +84,8 @@ async function main(): Promise<number> {
     annotateError(TITLE, 'Some buses were skipped; the day is not marked as done, so the next run retries.');
     return 1;
   }
-  console.log(`Done. ${outcome.seeded} employee(s) started ${outcome.day}.`);
-  annotateNotice(TITLE, `${outcome.day}: ${outcome.seeded} employee(s) started the new day.`);
+  console.log(`Done. ${outcome.employees} employee(s) started ${outcome.day}.`);
+  annotateNotice(TITLE, `${outcome.day}: ${outcome.employees} employee(s) started the new day.`);
   return 0;
 }
 

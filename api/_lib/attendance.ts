@@ -44,63 +44,34 @@ export async function loadEmployeeStates(
     goingStatus: d.data().goingStatus,
     returningStatus: d.data().returningStatus,
     hasRecordToday: records[i].exists,
-    changedAt: d.data().updatedAt?.toMillis?.() ?? 0,
+    goingInCount: Number(d.data().goingInCount ?? 0),
+    returningInCount: Number(d.data().returningInCount ?? 0),
   }));
 }
 
 /**
- * The writes of one employee: statuses + tally, and the new record. They are one UNIT: they must land in the same
- * batch. The record is created with create(), so if someone else made it in the meantime the whole batch fails
- * instead of counting the day twice.
+ * The writes of one employee: statuses, IN tallies, and today's record. They are one UNIT (same batch /
+ * transaction). A new record is made with create(), so if someone made it in the meantime the write fails instead
+ * of counting the day twice; an existing record (the person pressed IN / OUT today) is overwritten.
+ * The tallies are written as final values, so the unit must run on states read in the same transaction / batch.
  */
-export function seedUnit(db: Firestore, plan: EmployeePlan, day: string): Op[] {
+export function resetUnit(db: Firestore, plan: EmployeePlan, day: string): Op[] {
   const empRef = db.collection('employees').doc(plan.id);
+  const record = { date: day, goingStatus: plan.going, returningStatus: plan.returning, updatedAt: FieldValue.serverTimestamp() };
   return [
     (w) =>
       w.update(empRef, {
         goingStatus: plan.going,
         returningStatus: plan.returning,
-        ...(plan.goingTally ? { goingInCount: FieldValue.increment(plan.goingTally) } : {}),
-        ...(plan.returningTally ? { returningInCount: FieldValue.increment(plan.returningTally) } : {}),
+        goingInCount: plan.goingInCount,
+        returningInCount: plan.returningInCount,
         updatedAt: FieldValue.serverTimestamp(),
       }),
-    (w) =>
-      w.create(attendanceRef(db, plan.id, day), {
-        date: day,
-        goingStatus: plan.going,
-        returningStatus: plan.returning,
-        updatedAt: FieldValue.serverTimestamp(),
-      }),
+    plan.record === 'create'
+      ? (w) => w.create(attendanceRef(db, plan.id, day), record)
+      : (w) => w.update(attendanceRef(db, plan.id, day), record),
   ];
 }
-
-/**
- * A waiting employee who gives a seat back at the start of the day (see EmployeePlan.bumped): the new statuses,
- * the day taken back from the tally, and today's record (which exists – they pressed IN after midnight) updated.
- */
-export function bumpUnit(db: Firestore, plan: EmployeePlan, day: string): Op[] {
-  const empRef = db.collection('employees').doc(plan.id);
-  return [
-    (w) =>
-      w.update(empRef, {
-        goingStatus: plan.going,
-        returningStatus: plan.returning,
-        ...(plan.goingTally ? { goingInCount: FieldValue.increment(plan.goingTally) } : {}),
-        ...(plan.returningTally ? { returningInCount: FieldValue.increment(plan.returningTally) } : {}),
-        updatedAt: FieldValue.serverTimestamp(),
-      }),
-    (w) =>
-      w.update(attendanceRef(db, plan.id, day), {
-        goingStatus: plan.going,
-        returningStatus: plan.returning,
-        updatedAt: FieldValue.serverTimestamp(),
-      }),
-  ];
-}
-
-/** The writes the reset makes for one employee (none when the employee is left untouched). */
-export const planUnit = (db: Firestore, plan: EmployeePlan, day: string): Op[] =>
-  plan.seed ? seedUnit(db, plan, day) : plan.bumped ? bumpUnit(db, plan, day) : [];
 
 /** Commits units in batches of at most 400 operations, never splitting a unit across two batches. */
 export async function commitUnits(db: Firestore, units: Op[][]): Promise<void> {

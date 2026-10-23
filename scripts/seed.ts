@@ -15,7 +15,7 @@ if (!process.argv.includes('--dev') || process.env.NODE_ENV === 'production') {
 }
 
 const BUS_ID = 'bus-nozha-01';
-const BUS = { route: 'النزهة', busNumber: 'أ ص 8381', capacity: 13 };
+const BUS = { route: 'النزهة', busNumber: 'أ ص 8381', capacity: 14 };
 
 const EMPLOYEES = [
   { employeeId: 'EMP1001', name: 'Ahmed Mohamed', type: 'main' },
