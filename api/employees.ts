@@ -1,5 +1,5 @@
 /**
- * Vercel serverless function – employee management for managers (add / edit / delete).
+ * Vercel serverless function – employee management for managers (add / edit / delete / waiting line).
  *
  * Why a server function: the Firestore rules (rightly) let only admins create or delete employees, and a
  * browser can neither create nor delete OTHER people's Firebase Auth accounts. This function runs with the
@@ -10,12 +10,18 @@
  *   { action: 'create', employeeId, name, type: 'main' | 'waiting', busId }
  *   { action: 'update', employeeId, name?, type?, busId? }       (the ID itself cannot change)
  *   { action: 'delete', employeeId }
+ *   { action: 'reorder', busId, order: [employeeId, …] }          (the waiting line of that bus, first → last)
+ *
+ * The waiting line ("الدور", employees/{id}.queueOrder = 1, 2, 3 …) is kept gap-free here, in the same transaction as
+ * every change: a new waiting employee joins at the END, and leaving the line (deleted, made main, moved to another
+ * bus) closes the gap. See src/utils/waitingQueue.ts.
  *
  * Environment (Vercel → Project → Settings → Environment Variables):
  *   FIREBASE_SERVICE_ACCOUNT          the service-account JSON (whole file content)
  *   VITE_EMPLOYEE_EMAIL_DOMAIN        must match the value the accounts were created with (also used by /api/login)
  */
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type QuerySnapshot, type Transaction } from 'firebase-admin/firestore';
+import { renumber, sortWaiting, type Queued } from '../src/utils/waitingQueue.js';
 import { cairoDay, employeeEmail, getAdmin, HttpError, ID_PATTERN, randomPassword, type Admin } from './_lib/core.js';
 
 export type { Admin };
@@ -65,6 +71,25 @@ interface StoredBus {
 
 const inCount = (status: unknown) => (status === 'in' ? 1 : 0);
 
+// ── waiting line ───────────────────────────────────────────────────────────────────────────────
+const busEmployees = (a: Admin, busId: string) => a.db.collection('employees').where('busId', '==', busId);
+
+/** The waiting line of a bus, in order, from its employees read in the transaction (without `exclude`). */
+function waitingLine(peers: QuerySnapshot, exclude?: string): Queued[] {
+  return sortWaiting(
+    peers.docs
+      .filter((d) => d.id !== exclude && d.get('type') === 'waiting')
+      .map((d) => ({ id: d.id, name: String(d.get('name') ?? ''), queueOrder: d.get('queueOrder') ?? null })),
+  );
+}
+
+/** Writes 1, 2, 3 … onto `line` (only the numbers that change). */
+function writeLine(a: Admin, tx: Transaction, line: Queued[]): void {
+  for (const { id, queueOrder } of renumber(line)) {
+    tx.update(a.db.collection('employees').doc(id), { queueOrder, updatedAt: FieldValue.serverTimestamp() });
+  }
+}
+
 async function findUser(a: Admin, id: string) {
   try {
     return await a.auth.getUserByEmail(employeeEmail(id));
@@ -103,8 +128,10 @@ async function removeEmployeeRecord(a: Admin, id: string): Promise<boolean> {
     const locRef = a.db.collection('busLocations').doc(emp.busId);
     const busSnap = await tx.get(busRef);
     const locSnap = await tx.get(locRef);
+    const peers = emp.type === 'waiting' ? await tx.get(busEmployees(a, emp.busId)) : null;
 
     tx.delete(empRef);
+    if (peers) writeLine(a, tx, waitingLine(peers, id)); // close the gap in the waiting line
     const dG = inCount(emp.goingStatus);
     const dR = inCount(emp.returningStatus);
     if (busSnap.exists && (dG || dR)) {
@@ -152,7 +179,7 @@ async function provisionLogin(a: Admin, id: string, name: string): Promise<void>
 }
 
 // ── actions ────────────────────────────────────────────────────────────────────────────────────
-async function createEmployee(a: Admin, body: Body): Promise<void> {
+export async function createEmployee(a: Admin, body: Body): Promise<void> {
   const id = parseId(body.employeeId);
   const name = parseName(body.name);
   const type = parseType(body.type);
@@ -171,13 +198,13 @@ async function createEmployee(a: Admin, body: Body): Promise<void> {
   await a.db.runTransaction(async (tx) => {
     const empSnap = await tx.get(empRef);
     const busSnap = await tx.get(busRef);
-    const peers = type === 'main' ? await tx.get(a.db.collection('employees').where('busId', '==', busId)) : null;
+    const peers = await tx.get(busEmployees(a, busId));
 
     if (empSnap.exists) throw new HttpError(409, 'رقم الموظف مستخدم بالفعل.');
     if (!busSnap.exists) throw new HttpError(404, 'الأتوبيس غير موجود.');
     const bus = busSnap.data() as StoredBus;
 
-    if (type === 'main' && peers) {
+    if (type === 'main') {
       // Main employees start (and every new day restart) as IN for both directions, so they must fit the bus.
       const mains = peers.docs.filter((d) => d.data().type === 'main').length;
       if (mains >= bus.capacity) {
@@ -191,11 +218,15 @@ async function createEmployee(a: Admin, body: Body): Promise<void> {
     const initial = type === 'main' ? 'in' : 'out';
     // A main employee starts IN, so today already counts as one IN day (like at the nightly reset).
     const todayTally = type === 'main' ? 1 : 0;
+    // A new waiting employee joins at the END of the line (the line is made gap-free on the way).
+    const line = type === 'waiting' ? waitingLine(peers) : null;
+    if (line) writeLine(a, tx, line);
     tx.create(empRef, {
       employeeId: id,
       name,
       type,
       busId,
+      ...(line ? { queueOrder: line.length + 1 } : {}),
       goingStatus: initial,
       returningStatus: initial,
       goingInCount: todayTally,
@@ -229,7 +260,7 @@ async function createEmployee(a: Admin, body: Body): Promise<void> {
   }
 }
 
-async function updateEmployee(a: Admin, body: Body): Promise<void> {
+export async function updateEmployee(a: Admin, body: Body): Promise<void> {
   const id = parseId(body.employeeId);
   const empRef = a.db.collection('employees').doc(id);
   let nameChanged = false;
@@ -255,7 +286,8 @@ async function updateEmployee(a: Admin, body: Body): Promise<void> {
     const oldBusSnap = busChanged ? await tx.get(oldBusRef) : null;
     const oldLocRef = a.db.collection('busLocations').doc(emp.busId);
     const oldLocSnap = busChanged ? await tx.get(oldLocRef) : null;
-    const peers = becomesMain ? await tx.get(a.db.collection('employees').where('busId', '==', busId)) : null;
+    const oldPeers = await tx.get(busEmployees(a, emp.busId));
+    const newPeers = busChanged ? await tx.get(busEmployees(a, busId)) : oldPeers;
 
     if (!newBusSnap.exists) throw new HttpError(404, 'الأتوبيس غير موجود.');
     const newBus = newBusSnap.data() as StoredBus;
@@ -265,15 +297,32 @@ async function updateEmployee(a: Admin, body: Body): Promise<void> {
     if (busChanged && (newBus.goingCount + dG > newBus.capacity || newBus.returningCount + dR > newBus.capacity)) {
       throw new HttpError(409, 'الأتوبيس الجديد ممتلئ.');
     }
-    if (becomesMain && peers) {
-      const mains = peers.docs.filter((d) => d.id !== id && d.data().type === 'main').length;
+    if (becomesMain) {
+      const mains = newPeers.docs.filter((d) => d.id !== id && d.data().type === 'main').length;
       if (mains >= newBus.capacity) {
         throw new HttpError(409, `عدد الموظفين الأساسيين وصل لسعة الأتوبيس (${newBus.capacity}).`);
       }
     }
 
+    // waiting line: leaving it (made main / moved away) closes the gap, joining it (made waiting / moved here)
+    // puts the employee at the end of the new bus' line
+    const wasWaiting = emp.type === 'waiting';
+    const isWaiting = type === 'waiting';
+    const leavesLine = wasWaiting && (!isWaiting || busChanged);
+    const joinsLine = isWaiting && (!wasWaiting || busChanged);
+    let queuePatch: Record<string, unknown> = {};
+    if (leavesLine) {
+      writeLine(a, tx, waitingLine(oldPeers, id));
+      if (!isWaiting) queuePatch = { queueOrder: FieldValue.delete() };
+    }
+    if (joinsLine) {
+      const line = waitingLine(newPeers, id);
+      writeLine(a, tx, line);
+      queuePatch = { queueOrder: line.length + 1 };
+    }
+
     // writes
-    tx.update(empRef, { name, type, busId, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(empRef, { name, type, busId, ...queuePatch, updatedAt: FieldValue.serverTimestamp() });
     if (busChanged && (dG || dR)) {
       if (oldBusSnap?.exists) {
         const oldBus = oldBusSnap.data() as StoredBus;
@@ -302,7 +351,25 @@ async function updateEmployee(a: Admin, body: Body): Promise<void> {
   }
 }
 
-async function deleteEmployee(a: Admin, body: Body): Promise<void> {
+/** Sets the waiting line of a bus: `order` = every waiting employee of that bus, first → last. */
+export async function reorderWaiting(a: Admin, body: Body): Promise<void> {
+  const busId = parseBusId(body.busId);
+  if (!Array.isArray(body.order)) throw new HttpError(400, 'ترتيب الانتظار غير صالح.');
+  const order = body.order.map(parseId);
+
+  await a.db.runTransaction(async (tx) => {
+    const line = waitingLine(await tx.get(busEmployees(a, busId)));
+    const current = new Map(line.map((e) => [e.id, e]));
+    // The list must be exactly the bus' waiting employees – if someone was added / removed meanwhile, refuse
+    // rather than drop or invent a place.
+    if (order.length !== current.size || new Set(order).size !== order.length || order.some((id) => !current.has(id))) {
+      throw new HttpError(409, 'قائمة الانتظار اتغيّرت في نفس الوقت. راجع الترتيب وحاول تاني.');
+    }
+    writeLine(a, tx, order.map((id) => current.get(id)!));
+  });
+}
+
+export async function deleteEmployee(a: Admin, body: Body): Promise<void> {
   const id = parseId(body.employeeId);
   if (!(await removeEmployeeRecord(a, id))) throw new HttpError(404, 'الموظف غير موجود.');
 
@@ -335,6 +402,8 @@ export async function handleEmployees(a: Admin, authorization: string | undefine
       return updateEmployee(a, body);
     case 'delete':
       return deleteEmployee(a, body);
+    case 'reorder':
+      return reorderWaiting(a, body);
     default:
       throw new HttpError(400, 'إجراء غير معروف.');
   }

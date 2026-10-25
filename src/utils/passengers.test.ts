@@ -27,6 +27,15 @@ describe('passengersFor', () => {
     expect(ids).toEqual(['main', 'waiting', 'waiting']);
   });
 
+  it('waiting passengers follow the waiting line', () => {
+    const line = [
+      { ...emp('w1', 'waiting', 'in', 'in'), queueOrder: 2 },
+      { ...emp('w2', 'waiting', 'in', 'in'), queueOrder: 1 },
+      emp('m1', 'main', 'in', 'in'),
+    ] as Employee[];
+    expect(passengersFor(line, 'goingStatus').map((e) => e.id)).toEqual(['m1', 'w2', 'w1']);
+  });
+
   it('does not mutate its input', () => {
     const copy = [...all];
     passengersFor(all, 'goingStatus');

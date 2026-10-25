@@ -16,6 +16,8 @@ interface Props {
   onExportLog?: (employee: Employee) => void;
   /** The PDF of this card is being prepared. */
   exporting?: boolean;
+  /** Waiting employees: place in the waiting line (1 = first to take a free seat). */
+  queueRank?: number;
 }
 
 export function EmployeeCard({
@@ -27,13 +29,24 @@ export function EmployeeCard({
   onChange,
   onExportLog,
   exporting = false,
+  queueRank,
 }: Props) {
   return (
     <article className={`card card--${employee.type} card--${size}${isMe ? ' card--me' : ''}`}>
       <header className="card__head">
         <div>
-          <h3 className="card__name" dir="auto">
-            {employee.name}
+          <h3 className="card__name">
+            {/* bdi: a Latin name keeps its own direction, the tags stay on the same side for every name */}
+            <bdi dir="auto">{employee.name}</bdi>
+            {employee.type === 'waiting' && queueRank !== undefined && (
+              <span
+                className="queueTag"
+                title="الترتيب في قائمة الانتظار: الأول ياخد أول مكان يفضى"
+                aria-label={`الترتيب في قائمة الانتظار: ${queueRank}`}
+              >
+                {queueRank}
+              </span>
+            )}
             {isMe && <span className="meTag">أنت</span>}
           </h3>
         </div>

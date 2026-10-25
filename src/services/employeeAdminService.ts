@@ -5,7 +5,8 @@ import { makeError, toAppError } from '../utils/errors';
 type Payload =
   | { action: 'create'; employeeId: string; name: string; type: EmployeeType; busId: string }
   | { action: 'update'; employeeId: string; name?: string; type?: EmployeeType; busId?: string }
-  | { action: 'delete'; employeeId: string };
+  | { action: 'delete'; employeeId: string }
+  | { action: 'reorder'; busId: string; order: string[] };
 
 /**
  * Employees are managed by the server function /api/employees (Admin SDK): it verifies that the caller is a
@@ -39,3 +40,6 @@ export const updateEmployee = (input: { employeeId: string; name: string; type: 
   call({ action: 'update', ...input });
 
 export const deleteEmployee = (employeeId: string) => call({ action: 'delete', employeeId });
+
+/** Sets the waiting line of a bus: every waiting employee of that bus, first → last. */
+export const reorderWaiting = (busId: string, order: string[]) => call({ action: 'reorder', busId, order });

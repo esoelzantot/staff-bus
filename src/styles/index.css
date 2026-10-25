@@ -316,6 +316,29 @@ code {
   gap: 10px;
 }
 
+/* Place in the waiting line: a small number in a circle right after the name */
+.queueTag {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  margin-inline-start: 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--waiting);
+  color: var(--waiting);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.card--large .queueTag {
+  min-width: 28px;
+  height: 28px;
+  font-size: 0.9rem;
+}
+
 .card__name {
   font-size: 1.1rem;
   font-weight: 600;
@@ -1285,4 +1308,62 @@ code {
 
 .dialog__actions .btn {
   flex: 1;
+}
+
+/* ── Waiting line editor (manager → إدارة الموظفين) ───────────────────── */
+.queueEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--waiting);
+  border-radius: var(--radius-md);
+  background: var(--waiting-soft);
+}
+
+.queueEditor h3 {
+  font-size: 1rem;
+}
+
+.manage__hint {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.queueList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.queueRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.queueRow__rank {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--waiting);
+  color: #fff;
+  font-weight: 700;
+}
+
+.queueRow__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

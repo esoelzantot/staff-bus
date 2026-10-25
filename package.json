@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-staff-bus \"vitest run --config vitest.rules.config.ts\"",
+    "test:rules": "firebase emulators:exec --only firestore,auth --project demo-staff-bus \"vitest run --config vitest.rules.config.ts\"",
     "seed": "tsx --env-file=.env scripts/seed.ts --dev",
     "reset-daily": "tsx --env-file=.env scripts/reset-daily.ts",
     "attendance-start": "tsx --env-file=.env scripts/attendance-start.ts",

@@ -16,6 +16,7 @@ import type { TripType } from '../../types';
 import { formatDayLabel, todayKey } from '../../utils/date/format';
 import { toAppError } from '../../utils/errors';
 import { passengersFor } from '../../utils/passengers';
+import { queueRanks } from '../../utils/waitingQueue';
 
 interface Props {
   /** Firebase Auth uid of the signed-in employee (the reminders are stored per account). */
@@ -43,6 +44,7 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
   const waiting = useMemo(() => all.filter((e) => e.type === 'waiting'), [all]);
   const going = useMemo(() => passengersFor(all, 'goingStatus'), [all]);
   const returning = useMemo(() => passengersFor(all, 'returningStatus'), [all]);
+  const myRank = useMemo(() => (me ? queueRanks(waiting).get(me.id) : undefined), [waiting, me]);
 
   async function arrive() {
     if (!bus.data || !me) return;
@@ -148,6 +150,7 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
             employee={me}
             size="large"
             isMe
+            queueRank={myRank}
             pendingValue={updater.pendingValue}
             onChange={updater.update}
           />

@@ -1,10 +1,11 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { FiChevronDown, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiArrowDown, FiArrowUp, FiChevronDown, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { EMPLOYEE_ID_PATTERN } from '../../config/constants';
 import { useConfirm } from '../../hooks/useConfirm';
-import { createEmployee, deleteEmployee, updateEmployee } from '../../services/employeeAdminService';
+import { createEmployee, deleteEmployee, reorderWaiting, updateEmployee } from '../../services/employeeAdminService';
 import type { Bus, Employee, EmployeeType } from '../../types';
 import { toAppError } from '../../utils/errors';
+import { moveInLine, sortWaiting } from '../../utils/waitingQueue';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { Modal } from '../common/Modal';
 
@@ -25,6 +26,29 @@ export function EmployeeManager({ employees, bus, buses }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { confirm, dialog: confirmDialog } = useConfirm();
+
+  const line = useMemo(() => sortWaiting(employees.filter((e) => e.type === 'waiting')), [employees]);
+  const [moving, setMoving] = useState<string | null>(null);
+
+  /** Moves one waiting employee a place up / down; the cards everywhere follow live. */
+  async function move(id: string, step: -1 | 1) {
+    setMoving(id);
+    setError(null);
+    try {
+      await reorderWaiting(
+        bus.id,
+        moveInLine(
+          line.map((e) => e.id),
+          id,
+          step,
+        ),
+      );
+    } catch (err) {
+      setError(toAppError(err).message);
+    } finally {
+      setMoving(null);
+    }
+  }
 
   const sorted = useMemo(
     () => [...employees].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name, 'ar')),
@@ -65,6 +89,43 @@ export function EmployeeManager({ employees, bus, buses }: Props) {
         </button>
 
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+        {line.length > 0 && (
+          <div className="queueEditor">
+            <h3>ترتيب قائمة الانتظار</h3>
+            <p className="manage__hint">لما يفضى مكان، الأول في الترتيب هو اللي ياخده. الترتيب بيظهر على كارت كل موظف انتظار.</p>
+            <ol className="queueList">
+              {line.map((e, i) => (
+                <li key={e.id} className="queueRow">
+                  <span className="queueRow__rank num">{i + 1}</span>
+                  <strong className="queueRow__name" dir="auto">
+                    {e.name}
+                  </strong>
+                  <button
+                    type="button"
+                    className="iconBtn"
+                    aria-label={`تقديم ${e.name} في الدور`}
+                    title="لفوق"
+                    disabled={moving !== null || i === 0}
+                    onClick={() => void move(e.id, -1)}
+                  >
+                    {moving === e.id ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiArrowUp aria-hidden="true" />}
+                  </button>
+                  <button
+                    type="button"
+                    className="iconBtn"
+                    aria-label={`تأخير ${e.name} في الدور`}
+                    title="لتحت"
+                    disabled={moving !== null || i === line.length - 1}
+                    onClick={() => void move(e.id, 1)}
+                  >
+                    <FiArrowDown aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         {sorted.length === 0 ? (
           <p className="manage__empty">لا يوجد موظفون في هذا الأتوبيس.</p>

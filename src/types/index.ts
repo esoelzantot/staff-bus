@@ -30,6 +30,11 @@ export interface Employee {
    */
   goingInCount: number;
   returningInCount: number;
+  /**
+   * Waiting employees only: place in the waiting line ("الدور", 1 = first to take a free seat). Set by managers;
+   * missing for employees never ordered (they come after, by name). See src/utils/waitingQueue.ts.
+   */
+  queueOrder?: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
