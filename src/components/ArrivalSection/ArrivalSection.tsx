@@ -25,14 +25,14 @@ export function ArrivalSection({ trip, loading, busy, onArrive, onReset }: Props
       </div>
 
       {loading ? (
-        <Spinner label="جارٍ تحميل بيانات الأتوبيس…" />
+        <Spinner label="جارٍ تحميل بيانات الباص…" />
       ) : !trip ? (
         <EmptyState>لا توجد رحلة نشطة.</EmptyState>
       ) : arrived ? (
         <div className="arrival__done">
           <FiCheckCircle aria-hidden="true" className="arrival__icon" />
           <div>
-            <strong>وصل الأتوبيس ✓</strong>
+            <strong>وصل الباص ✓</strong>
             <p>وقت الوصول:</p>
             <p className="arrival__time">{formatTime(trip.arrivalTime)}</p>
           </div>
@@ -61,8 +61,8 @@ export function ArrivalSection({ trip, loading, busy, onArrive, onReset }: Props
           disabled={busy}
           onClick={async () => {
             const ok = await confirm({
-              title: 'وصل الأتوبيس؟',
-              message: 'هل وصل الأتوبيس الآن؟ سيتم تسجيل وقت الوصول.',
+              title: 'وصل الباص؟',
+              message: 'هل وصل الباص الآن؟ سيتم تسجيل وقت الوصول.',
               confirmLabel: 'نعم، وصل',
               cancelLabel: 'لسه',
             });
@@ -70,7 +70,7 @@ export function ArrivalSection({ trip, loading, busy, onArrive, onReset }: Props
           }}
         >
           {busy ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiFlag aria-hidden="true" />}
-          وصل الأتوبيس
+          وصل الباص
         </button>
       )}
     </section>

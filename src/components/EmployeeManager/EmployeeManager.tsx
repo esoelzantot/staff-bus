@@ -128,7 +128,7 @@ export function EmployeeManager({ employees, bus, buses }: Props) {
         )}
 
         {sorted.length === 0 ? (
-          <p className="manage__empty">لا يوجد موظفون في هذا الأتوبيس.</p>
+          <p className="manage__empty">لا يوجد موظفون في هذا الباص.</p>
         ) : (
           <ul className="manageList">
             {sorted.map((e) => (
@@ -247,7 +247,7 @@ function EmployeeDialog({
 
         {buses.length > 1 && (
           <label className="field">
-            <span>الأتوبيس</span>
+            <span>الباص</span>
             <select value={busId} onChange={(e) => setBusId(e.target.value)}>
               {buses.map((b) => (
                 <option key={b.id} value={b.id}>

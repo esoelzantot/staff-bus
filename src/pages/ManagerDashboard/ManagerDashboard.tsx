@@ -66,7 +66,6 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
       const { generateSummaryPdf } = await import('../../utils/pdf/generateSummaryPdf');
       generateSummaryPdf({
         route: bus.route,
-        busNumber: bus.busNumber,
         tripType,
         date: trip.data?.date ?? todayKey(),
         capacity: bus.capacity,
@@ -110,7 +109,6 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
         employeeName: monthly.employee.name,
         employeeType: monthly.employee.type,
         route: bus.route,
-        busNumber: bus.busNumber,
         month,
         days: monthly.days,
       });
@@ -123,7 +121,7 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  if (buses.loading) return <Spinner label="جارٍ تحميل بيانات الأتوبيس…" />;
+  if (buses.loading) return <Spinner label="جارٍ تحميل بيانات الباص…" />;
 
   return (
     <div className="page">

@@ -1,7 +1,7 @@
 {
-  "name": "أتوبيس الموظفين",
+  "name": "باص الموظفين",
   "short_name": "Staff Bus",
-  "description": "سجلك في أتوبيس الموظفين: IN / OUT للذهاب والعودة.",
+  "description": "سجلك في باص الموظفين: IN / OUT للذهاب والعودة.",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",

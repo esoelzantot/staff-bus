@@ -69,7 +69,7 @@ export function ArrivedFooter({ trip, loading, busy, canCancel, onArrive, onCanc
           onClick={async () => {
             const ok = await confirm({
               title: 'وصلنا؟',
-              message: 'هل وصل الأتوبيس الآن؟ سيظهر الوصول لكل الموظفين.',
+              message: 'هل وصل الباص الآن؟ سيظهر الوصول لكل الموظفين.',
               confirmLabel: 'نعم، وصلنا',
               cancelLabel: 'لسه',
             });

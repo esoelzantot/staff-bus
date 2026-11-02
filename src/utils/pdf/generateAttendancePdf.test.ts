@@ -6,7 +6,7 @@ const day = (date: string, going: 'in' | 'out', returning: 'in' | 'out') =>
   ({ id: date, date, goingStatus: going, returningStatus: returning }) as AttendanceDay;
 
 // ASCII-only data: the PDF text stays real text (Arabic goes through a browser canvas and is previewed by hand).
-const base = { employeeName: 'Ahmed Ali', employeeType: 'main' as const, route: 'Nozha', busNumber: 'A 8381' };
+const base = { employeeName: 'Ahmed Ali', employeeType: 'main' as const, route: 'Nozha' };
 const textOf = (doc: ReturnType<typeof buildAttendancePdf>) =>
   (doc as unknown as { internal: { pages: string[][] } }).internal.pages.flat().join(' ');
 

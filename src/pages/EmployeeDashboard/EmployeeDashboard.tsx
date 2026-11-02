@@ -81,7 +81,6 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
       const { generateSummaryPdf } = await import('../../utils/pdf/generateSummaryPdf');
       generateSummaryPdf({
         route: bus.data.route,
-        busNumber: bus.data.busNumber,
         tripType,
         date: todayKey(),
         capacity: bus.data.capacity,
@@ -96,12 +95,8 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
   return (
     <main className="page">
       <div className="topbar">
-        <h1>سجلي في الأتوبيس</h1>
-        <span className="speedLines" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
+        <h1>سجلي في الباص</h1>
+        <img className="topbar__rabbit" src="/brand/rabbit.png" alt="" aria-hidden="true" width={287} height={398} />
         <button type="button" className="btn btn--ghost btn--onDark" onClick={onLogout}>
           <FiLogOut aria-hidden="true" /> تغيير الموظف
         </button>
@@ -119,7 +114,7 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
       ) : (
         <>
           {bus.data && (
-            <section className="busInfo" aria-label="بيانات الأتوبيس">
+            <section className="busInfo" aria-label="بيانات الباص">
               <div className="busInfo__day">
                 <span className="busInfo__caption">اليوم</span>
                 <strong>{formatDayLabel(today)}</strong>
@@ -128,17 +123,13 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
                 <span className="busInfo__caption">المسار</span>
                 <strong dir="auto">{bus.data.route}</strong>
               </div>
-              <div>
-                <span className="busInfo__caption">الأتوبيس</span>
-                <strong dir="auto">{bus.data.busNumber}</strong>
-              </div>
               <div className="busInfo__seats">
                 <SeatMap label="الذهاب" capacity={bus.data.capacity} taken={bus.data.goingCount} />
                 <SeatMap label="العودة" capacity={bus.data.capacity} taken={bus.data.returningCount} />
               </div>
             </section>
           )}
-          {bus.loading && <Spinner label="جارٍ تحميل بيانات الأتوبيس…" />}
+          {bus.loading && <Spinner label="جارٍ تحميل بيانات الباص…" />}
 
           <EmployeeCard
             employee={me}

@@ -59,13 +59,13 @@ export async function setEmployeeStatus(employeeId: string, field: StatusField, 
       if (employee[field] === value) return; // nothing to change
 
       const busSnap = await tx.get(busRef(employee.busId));
-      if (!busSnap.exists()) throw makeError('not-found', 'لم يتم العثور على بيانات الأتوبيس.');
+      if (!busSnap.exists()) throw makeError('not-found', 'لم يتم العثور على بيانات الباص.');
       const bus = mapBus(busSnap);
 
       const counter = COUNTER_FIELD[field];
       const delta = value === 'in' ? 1 : -1;
       if (delta > 0 && bus[counter] >= bus.capacity) {
-        throw makeError('bus-full', `الأتوبيس ممتلئ حالياً. الحد الأقصى: ${bus.capacity} راكب.`);
+        throw makeError('bus-full', `الباص ممتلئ حالياً. الحد الأقصى: ${bus.capacity} راكب.`);
       }
 
       const tally = TALLY_FIELD[field];

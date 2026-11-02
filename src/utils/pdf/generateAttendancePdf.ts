@@ -10,7 +10,6 @@ export interface AttendancePdfData {
   employeeName: string;
   employeeType: EmployeeType;
   route: string;
-  busNumber: string;
   /** The month of the record, yyyy-mm. */
   month: string;
   /** The employee's recorded days (any months – only `month` is printed). */
@@ -126,7 +125,6 @@ export function buildAttendancePdf(data: AttendancePdfData): jsPDF {
     ['Employee:', data.employeeName],
     ['Type:', data.employeeType === 'main' ? 'Main' : 'Waiting'],
     ['Route:', data.route],
-    ['Bus Number:', data.busNumber],
     ['Month:', formatMonth(data.month)],
     ['Generated:', `${formatDate(todayKey())}  ${formatTime(new Date(), 'en-US')}`],
   ];

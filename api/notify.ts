@@ -1,8 +1,8 @@
 /**
  * Vercel serverless function – the daily reminders (Web Push).
  *
- *   POST /api/notify?slot=going        07:00 Cairo  "هتركب الأتوبيس النهارده؟"   (Going IN / OUT)
- *   POST /api/notify?slot=returning    16:00 Cairo  "هترجع بالأتوبيس النهارده؟"  (Returning IN / OUT)
+ *   POST /api/notify?slot=going        07:00 Cairo  "هتركب الباص النهارده؟"   (Going IN / OUT)
+ *   POST /api/notify?slot=returning    16:00 Cairo  "هترجع بالباص النهارده؟"  (Returning IN / OUT)
  *   Authorization: Bearer <NOTIFY_SECRET>
  *
  * Called by an external scheduler (cron-job.org – GitHub Actions starts runs hours late). It is safe to call more
@@ -103,7 +103,7 @@ export function buildPayload(slot: Slot, employee: EmployeeInfo): Payload {
     const status = statusLabel(employee.goingStatus);
     return {
       title: '🚌 الذهاب',
-      body: [`صباح الخير يا ${who}، هتركب الأتوبيس النهارده؟`, `اختيارك دلوقتي: ${status}`, 'لو عايز تغيّره افتح التطبيق.'].join('\n'),
+      body: [`صباح الخير يا ${who}، هتركب الباص النهارده؟`, `اختيارك دلوقتي: ${status}`, 'لو عايز تغيّره افتح التطبيق.'].join('\n'),
       tag: 'reminder-going',
       url: '/',
     };
@@ -111,7 +111,7 @@ export function buildPayload(slot: Slot, employee: EmployeeInfo): Payload {
   const status = statusLabel(employee.returningStatus);
   return {
     title: '🚌 العودة',
-    body: [`مساء الخير يا ${who}، هترجع بالأتوبيس النهارده؟`, `اختيارك دلوقتي: ${status}`, 'لو عايز تغيّره افتح التطبيق.'].join('\n'),
+    body: [`مساء الخير يا ${who}، هترجع بالباص النهارده؟`, `اختيارك دلوقتي: ${status}`, 'لو عايز تغيّره افتح التطبيق.'].join('\n'),
     tag: 'reminder-returning',
     url: '/',
   };

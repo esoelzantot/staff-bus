@@ -46,67 +46,75 @@ export function EmployeeIdDialog({ initialError }: { initialError?: string | nul
 
   return (
     <div className="dialog-backdrop">
-      <form className="dialog dialog--login" role="dialog" aria-modal="true" aria-labelledby="dlg-title" onSubmit={submit}>
-        <div className="loginBrand" aria-hidden="true">
-          <svg className="loginBrand__logo" viewBox="0 0 64 64">
-            <rect width="64" height="64" rx="14" />
-            <rect x="12" y="16" width="40" height="28" rx="6" fill="#fff" />
-            <rect x="17" y="21" width="30" height="10" rx="2" />
-            <circle cx="22" cy="48" r="5" fill="#fff" />
-            <circle cx="42" cy="48" r="5" fill="#fff" />
-          </svg>
-          <span className="loginBrand__name">أتوبيس الموظفين</span>
-          <span className="speedLines">
-            <i />
-            <i />
-            <i />
-          </span>
+      <div className="login">
+        <img className="login__logo" src="/brand/jt-logo-white.png" alt="J&T Express" width={353} height={76} />
+        <div className="login__stage">
+          {/* the J&T rabbit, standing on the card's corner and waving its flag */}
+          <img className="login__rabbit" src="/brand/rabbit.png" alt="" aria-hidden="true" width={287} height={398} />
+          <form
+            className="dialog dialog--login"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dlg-title"
+            onSubmit={submit}
+          >
+            <div className="loginBrand" aria-hidden="true">
+              <svg className="loginBrand__logo" viewBox="0 0 64 64">
+                <rect width="64" height="64" rx="14" />
+                <rect x="12" y="16" width="40" height="28" rx="6" fill="#fff" />
+                <rect x="17" y="21" width="30" height="10" rx="2" />
+                <circle cx="22" cy="48" r="5" fill="#fff" />
+                <circle cx="42" cy="48" r="5" fill="#fff" />
+              </svg>
+              <span className="loginBrand__name">باص الموظفين</span>
+            </div>
+            <h1 id="dlg-title">أهلاً بك</h1>
+            <p className="dialog__hint">
+              {needsPin ? 'هذا حساب إدارة. أدخل الرقم السري للمتابعة.' : 'أدخل رقم الموظف لعرض سجلك في الباص.'}
+            </p>
+
+            <label className="field">
+              <span>رقم الموظف</span>
+              <input
+                dir="ltr"
+                value={employeeId}
+                onChange={(e) => changeId(e.target.value)}
+                placeholder="EMP1025"
+                autoComplete="username"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
+                required
+              />
+            </label>
+
+            {needsPin && (
+              <label className="field">
+                <span>الرقم السري</span>
+                <input
+                  dir="ltr"
+                  type="password"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  autoComplete="current-password"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoFocus
+                  required
+                />
+              </label>
+            )}
+
+            <ErrorBanner message={error} />
+
+            <button type="submit" className="btn btn--primary btn--xl" disabled={busy}>
+              {busy ? 'جارٍ التحقق…' : 'متابعة'}
+            </button>
+          </form>
         </div>
-        <h1 id="dlg-title">أهلاً بك</h1>
-        <p className="dialog__hint">
-          {needsPin ? 'هذا حساب إدارة. أدخل الرقم السري للمتابعة.' : 'أدخل رقم الموظف لعرض سجلك في الأتوبيس.'}
-        </p>
-
-        <label className="field">
-          <span>رقم الموظف</span>
-          <input
-            dir="ltr"
-            value={employeeId}
-            onChange={(e) => changeId(e.target.value)}
-            placeholder="EMP1025"
-            autoComplete="username"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            autoFocus
-            required
-          />
-        </label>
-
-        {needsPin && (
-          <label className="field">
-            <span>الرقم السري</span>
-            <input
-              dir="ltr"
-              type="password"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              autoComplete="current-password"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              autoFocus
-              required
-            />
-          </label>
-        )}
-
-        <ErrorBanner message={error} />
-
-        <button type="submit" className="btn btn--primary btn--xl" disabled={busy}>
-          {busy ? 'جارٍ التحقق…' : 'متابعة'}
-        </button>
-      </form>
+      </div>
     </div>
   );
 }

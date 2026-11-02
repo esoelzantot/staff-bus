@@ -30,10 +30,6 @@ export function Header({ bus, buses, onSelectBus, onTripChange, tripBusy, onLogo
           <span className="board__caption">اليوم</span>
           <strong>{formatDayLabel(today)}</strong>
         </div>
-        <div className="board__plate">
-          <span className="board__caption">الأتوبيس</span>
-          <strong dir="auto">{bus.busNumber}</strong>
-        </div>
       </div>
 
       <div className="board__controls">
@@ -53,7 +49,7 @@ export function Header({ bus, buses, onSelectBus, onTripChange, tripBusy, onLogo
         </div>
 
         {buses.length > 1 && (
-          <select className="select" value={bus.id} onChange={(e) => onSelectBus(e.target.value)} aria-label="اختيار الأتوبيس">
+          <select className="select" value={bus.id} onChange={(e) => onSelectBus(e.target.value)} aria-label="اختيار الباص">
             {buses.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.route} – {b.busNumber}

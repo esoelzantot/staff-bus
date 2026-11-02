@@ -83,7 +83,7 @@ export function planBusReset(capacity: number, employees: EmployeeState[]): BusR
 
   const mains = plans.filter((p) => p.going === 'in').length;
   if (mains > capacity) {
-    return { error: `عدد الموظفين الأساسيين (${mains}) أكبر من سعة الأتوبيس (${capacity}).` };
+    return { error: `عدد الموظفين الأساسيين (${mains}) أكبر من سعة الباص (${capacity}).` };
   }
   return { employees: plans, goingCount: mains, returningCount: mains };
 }

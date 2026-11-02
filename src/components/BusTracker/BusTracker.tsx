@@ -43,22 +43,22 @@ export function BusTracker({ bus, me, arrived }: Props) {
   const someoneElseSharing = active && !isMine && fresh;
 
   let status: string;
-  if (share.sharing) status = 'أنت تشارك موقع الأتوبيس الآن. اترك هذه الصفحة مفتوحة.';
+  if (share.sharing) status = 'أنت تشارك موقع الباص الآن. اترك هذه الصفحة مفتوحة.';
   else if (active && isMine) status = 'مشاركة موقعك متوقفة (ربما أُعيد تحميل الصفحة). اضغط استئناف لمتابعة المشاركة.';
-  else if (someoneElseSharing) status = `${loc?.sharedByName} يشارك موقع الأتوبيس · آخر تحديث ${age}`;
+  else if (someoneElseSharing) status = `${loc?.sharedByName} يشارك موقع الباص · آخر تحديث ${age}`;
   else if (active) status = `توقف تحديث الموقع من ${loc?.sharedByName} (${age}). يظهر آخر موقع معروف.`;
-  else status = 'لا أحد يشارك موقع الأتوبيس حالياً.';
+  else status = 'لا أحد يشارك موقع الباص حالياً.';
 
   return (
     <section className="section tracker" aria-labelledby="tracker-title">
       <div className="section__head">
-        <h2 id="tracker-title">تتبع الأتوبيس</h2>
+        <h2 id="tracker-title">تتبع الباص</h2>
       </div>
 
       <ErrorBanner message={share.error ?? location.error} onDismiss={share.clearError} />
 
       {location.loading ? (
-        <Spinner label="جارٍ تحميل موقع الأتوبيس…" />
+        <Spinner label="جارٍ تحميل موقع الباص…" />
       ) : (
         <>
           <p className="tracker__status" role="status">
@@ -68,13 +68,13 @@ export function BusTracker({ bus, me, arrived }: Props) {
           <div className="tracker__actions">
             {active && (
               <button type="button" className="btn btn--signal" onClick={() => setMapOpen((open) => !open)}>
-                <FiMapPin aria-hidden="true" /> {mapOpen ? 'إخفاء الخريطة' : 'تتبع الأتوبيس'}
+                <FiMapPin aria-hidden="true" /> {mapOpen ? 'إخفاء الخريطة' : 'تتبع الباص'}
               </button>
             )}
             {!share.sharing && !someoneElseSharing && (
               <button type="button" className="btn btn--ghost" disabled={share.starting} onClick={() => void share.start()}>
                 {share.starting ? <span className="spinner spinner--sm" aria-hidden="true" /> : <FiRadio aria-hidden="true" />}
-                {active && isMine ? 'استئناف المشاركة' : 'ابدأ مشاركة موقع الأتوبيس'}
+                {active && isMine ? 'استئناف المشاركة' : 'ابدأ مشاركة موقع الباص'}
               </button>
             )}
             {(share.sharing || (active && isMine)) && (
@@ -86,7 +86,7 @@ export function BusTracker({ bus, me, arrived }: Props) {
 
           {!share.sharing && !someoneElseSharing && (
             <p className="tracker__note">
-              عند بدء المشاركة يظهر موقع هاتفك لموظفي هذا الأتوبيس إلى أن توقفها أو يصل الأتوبيس.
+              عند بدء المشاركة يظهر موقع هاتفك لموظفي هذا الباص إلى أن توقفها أو يصل الباص.
             </p>
           )}
 

@@ -54,7 +54,7 @@ export default function BusMap({ lat, lng, speed, info }: Props) {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(m);
-    marker.current = L.marker([lat, lng], { icon: busIcon, title: 'الأتوبيس' }).addTo(m);
+    marker.current = L.marker([lat, lng], { icon: busIcon, title: 'الباص' }).addTo(m);
     map.current = m;
 
     m.on('dragstart', () => setFollow(false)); // the user wants to look around
@@ -157,7 +157,7 @@ export default function BusMap({ lat, lng, speed, info }: Props) {
 
   return (
     <div ref={wrap} className={`busMapWrap${full ? ' busMapWrap--full' : ''}`}>
-      <div ref={box} className="busMap" dir="ltr" role="img" aria-label="خريطة موقع الأتوبيس" />
+      <div ref={box} className="busMap" dir="ltr" role="img" aria-label="خريطة موقع الباص" />
 
       <div className="busMapBtns">
         <button
@@ -174,8 +174,8 @@ export default function BusMap({ lat, lng, speed, info }: Props) {
             type="button"
             className="busMapBtn busMapBtn--accent"
             onClick={recenter}
-            aria-label="العودة لتتبع الأتوبيس"
-            title="العودة لتتبع الأتوبيس"
+            aria-label="العودة لتتبع الباص"
+            title="العودة لتتبع الباص"
           >
             <FiCrosshair aria-hidden="true" />
           </button>

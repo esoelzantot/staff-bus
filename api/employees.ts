@@ -51,7 +51,7 @@ function parseType(raw: unknown): EmployeeType {
 
 function parseBusId(raw: unknown): string {
   const busId = typeof raw === 'string' ? raw.trim() : '';
-  if (!BUS_ID_PATTERN.test(busId)) throw new HttpError(400, 'الأتوبيس غير محدد.');
+  if (!BUS_ID_PATTERN.test(busId)) throw new HttpError(400, 'الباص غير محدد.');
   return busId;
 }
 
@@ -201,17 +201,17 @@ export async function createEmployee(a: Admin, body: Body): Promise<void> {
     const peers = await tx.get(busEmployees(a, busId));
 
     if (empSnap.exists) throw new HttpError(409, 'رقم الموظف مستخدم بالفعل.');
-    if (!busSnap.exists) throw new HttpError(404, 'الأتوبيس غير موجود.');
+    if (!busSnap.exists) throw new HttpError(404, 'الباص غير موجود.');
     const bus = busSnap.data() as StoredBus;
 
     if (type === 'main') {
       // Main employees start (and every new day restart) as IN for both directions, so they must fit the bus.
       const mains = peers.docs.filter((d) => d.data().type === 'main').length;
       if (mains >= bus.capacity) {
-        throw new HttpError(409, `عدد الموظفين الأساسيين وصل لسعة الأتوبيس (${bus.capacity}). لا يمكن إضافة موظف أساسي آخر.`);
+        throw new HttpError(409, `عدد الموظفين الأساسيين وصل لسعة الباص (${bus.capacity}). لا يمكن إضافة موظف أساسي آخر.`);
       }
       if (bus.goingCount >= bus.capacity || bus.returningCount >= bus.capacity) {
-        throw new HttpError(409, 'الأتوبيس ممتلئ حالياً، والموظف الأساسي يبدأ IN دائماً. أخرج أحد الركاب أولاً أو أضفه كموظف انتظار.');
+        throw new HttpError(409, 'الباص ممتلئ حالياً، والموظف الأساسي يبدأ IN دائماً. أخرج أحد الركاب أولاً أو أضفه كموظف انتظار.');
       }
     }
 
@@ -290,18 +290,18 @@ export async function updateEmployee(a: Admin, body: Body): Promise<void> {
     const oldPeers = await tx.get(busEmployees(a, emp.busId));
     const newPeers = busChanged ? await tx.get(busEmployees(a, busId)) : oldPeers;
 
-    if (!newBusSnap.exists) throw new HttpError(404, 'الأتوبيس غير موجود.');
+    if (!newBusSnap.exists) throw new HttpError(404, 'الباص غير موجود.');
     const newBus = newBusSnap.data() as StoredBus;
     const dG = inCount(emp.goingStatus);
     const dR = inCount(emp.returningStatus);
 
     if (busChanged && (newBus.goingCount + dG > newBus.capacity || newBus.returningCount + dR > newBus.capacity)) {
-      throw new HttpError(409, 'الأتوبيس الجديد ممتلئ.');
+      throw new HttpError(409, 'الباص الجديد ممتلئ.');
     }
     if (becomesMain) {
       const mains = newPeers.docs.filter((d) => d.id !== id && d.data().type === 'main').length;
       if (mains >= newBus.capacity) {
-        throw new HttpError(409, `عدد الموظفين الأساسيين وصل لسعة الأتوبيس (${newBus.capacity}).`);
+        throw new HttpError(409, `عدد الموظفين الأساسيين وصل لسعة الباص (${newBus.capacity}).`);
       }
     }
 

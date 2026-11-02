@@ -24,7 +24,7 @@ export function SeatMap({ label, capacity, taken, size = 'regular' }: Props) {
     <figure
       className={`seatMap seatMap--${size}${free === 0 ? ' is-full' : ''}`}
       role="img"
-      aria-label={`${label}: ${filled} من ${seats} مقعد مشغول${free === 0 ? '، الأتوبيس ممتلئ' : `، متبقي ${free}`}`}
+      aria-label={`${label}: ${filled} من ${seats} مقعد مشغول${free === 0 ? '، الباص ممتلئ' : `، متبقي ${free}`}`}
     >
       <figcaption className="seatMap__head" aria-hidden="true">
         <span className="seatMap__label">{label}</span>

@@ -6,7 +6,6 @@ import { makeError } from '../errors';
 
 export interface SummaryPdfData {
   route: string;
-  busNumber: string;
   tripType: TripType;
   /** yyyy-mm-dd of the trip */
   date: string;
@@ -86,7 +85,6 @@ export function generateSummaryPdf(data: SummaryPdfData): void {
 
     const rows: [string, string][] = [
       ['Route:', data.route],
-      ['Bus Number:', data.busNumber],
       ['Trip Type:', tripLabel],
       ['Date:', formatDate(data.date)],
       ['Time:', formatTime(now, 'en-US')],

@@ -33,19 +33,19 @@ async function main() {
   // ── buses ──────────────────────────────────────────────────────────────
   const busSnap = await adminDb.collection('buses').get();
   const buses = new Map(busSnap.docs.map((d) => [d.id, { capacity: d.data().capacity as number, route: d.data().route as string }]));
-  if (buses.size === 0) fail(['لا يوجد أتوبيس في المشروع. أنشئه الأول:', '  npm run create-user -- bus <busId> "<Route>" "<Bus number>" 14']);
+  if (buses.size === 0) fail(['لا يوجد باص في المشروع. أنشئه الأول:', '  npm run create-user -- bus <busId> "<Route>" "<Bus number>" 14']);
 
   const onlyBus = buses.size === 1 ? [...buses.keys()][0] : null;
   const problems: string[] = [];
   for (const r of rows) {
     r.busId ??= onlyBus;
-    if (!r.busId) problems.push(`سطر ${r.line}: فيه أكتر من أتوبيس، لازم تكتب busId.`);
-    else if (!buses.has(r.busId)) problems.push(`سطر ${r.line}: الأتوبيس "${r.busId}" غير موجود.`);
+    if (!r.busId) problems.push(`سطر ${r.line}: فيه أكتر من باص، لازم تكتب busId.`);
+    else if (!buses.has(r.busId)) problems.push(`سطر ${r.line}: الباص "${r.busId}" غير موجود.`);
   }
   // "main" employees fill the bus, so they must fit its capacity.
   for (const [busId, bus] of buses) {
     const mains = rows.filter((r) => r.busId === busId && r.type === 'main').length;
-    if (mains > bus.capacity) problems.push(`الأتوبيس ${busId}: عدد الأساسي (${mains}) أكبر من السعة (${bus.capacity}).`);
+    if (mains > bus.capacity) problems.push(`الباص ${busId}: عدد الأساسي (${mains}) أكبر من السعة (${bus.capacity}).`);
   }
   if (problems.length) fail(['لم يتم تنفيذ أي شيء:', ...problems.map((p) => `  • ${p}`)]);
 
