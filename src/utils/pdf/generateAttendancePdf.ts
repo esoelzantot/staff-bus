@@ -23,12 +23,12 @@ const PAGE = { width: 595.28, height: 841.89, margin: 48 };
 const NON_ASCII = /[^\u0000-\u007F]/;
 const FONT_STACK = `"IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif`;
 type Rgb = [number, number, number];
-const INK: Rgb = [14, 42, 38];
-const MUTED: Rgb = [100, 112, 110];
+const INK: Rgb = [29, 29, 34];
+const MUTED: Rgb = [110, 109, 118];
 const IN_COLOR: Rgb = [20, 120, 70];
-const OUT_COLOR: Rgb = [176, 42, 42];
-const HEADER_FILL: Rgb = [238, 242, 241];
-const ZEBRA_FILL: Rgb = [248, 250, 249];
+const OUT_COLOR: Rgb = [159, 18, 25];
+const HEADER_FILL: Rgb = [244, 244, 246];
+const ZEBRA_FILL: Rgb = [250, 250, 251];
 
 /** Column x positions (pt). */
 const COL = {
@@ -117,7 +117,7 @@ export function buildAttendancePdf(data: AttendancePdfData): jsPDF {
   y += 28;
   drawText(doc, 'Employee Monthly IN Record', PAGE.margin, y, { size: 20, bold: true });
   y += 14;
-  doc.setDrawColor(255, 196, 0);
+  doc.setDrawColor(229, 30, 37); // J&T red
   doc.setLineWidth(3);
   doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
   y += 28;
@@ -137,7 +137,7 @@ export function buildAttendancePdf(data: AttendancePdfData): jsPDF {
 
   // Totals of the month
   y += 10;
-  doc.setDrawColor(200, 206, 204);
+  doc.setDrawColor(223, 222, 228);
   doc.setLineWidth(0.6);
   doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
   y += 22;

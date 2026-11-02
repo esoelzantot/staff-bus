@@ -1,21 +1,23 @@
-/* ── Tokens ─────────────────────────────────────────────────────────────── */
+/* ── Tokens – J&T Express palette: red #E51E25, white, light grey #DFDEE4 ── */
 :root {
-  --paper: #f1f4ef;
+  --brand: #e51e25;
+  --brand-deep: #b5151b;
+  --brand-soft: #fde8e9;
+  --paper: #f4f4f6;
   --surface: #ffffff;
-  --ink: #0e2a26;
-  --ink-soft: #3d5550;
-  --muted: #667a75;
-  --line: #d6ddd7;
-  --signal: #ffc400;
-  --signal-deep: #e0aa00;
+  --ink: #1d1d22;
+  --ink-soft: #45444c;
+  --muted: #6e6d76;
+  --line: #dfdee4;
   --in: #177a42;
   --in-soft: #e1f3e8;
-  --out: #b23b2a;
-  --out-soft: #f9e6e2;
-  --main: #0e5f54;
-  --main-soft: #dff0ec;
-  --waiting: #8a5a00;
-  --waiting-soft: #fff2cc;
+  /* darker than the brand red, so OUT never looks like a brand element */
+  --out: #9f1219;
+  --out-soft: #f9e3e4;
+  --main: var(--brand);
+  --main-soft: var(--brand-soft);
+  --waiting: #55545c;
+  --waiting-soft: #ecebf0;
   --radius-lg: 18px;
   --radius-md: 12px;
   --radius-sm: 8px;
@@ -58,12 +60,13 @@ select {
 }
 
 :focus-visible {
-  outline: 3px solid var(--signal);
+  /* charcoal: visible on white AND on the red header */
+  outline: 3px solid var(--ink);
   outline-offset: 2px;
 }
 
 code {
-  background: rgba(14, 42, 38, 0.08);
+  background: rgba(29, 29, 34, 0.08);
   padding: 0 4px;
   border-radius: 4px;
 }
@@ -103,14 +106,14 @@ code {
 
 /* ── Destination board (manager header) ─────────────────────────────────── */
 .board {
-  background: var(--ink);
+  background: var(--brand);
   color: #fff;
   border-radius: var(--radius-lg);
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  background-image: radial-gradient(rgba(255, 196, 0, 0.12) 1px, transparent 1.2px);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1.2px);
   background-size: 9px 9px;
 }
 
@@ -131,7 +134,7 @@ code {
 
 .board__route strong {
   display: block;
-  color: var(--signal);
+  color: #fff;
   font-size: clamp(2rem, 7vw, 3.2rem);
   line-height: 1.15;
   font-weight: 700;
@@ -150,10 +153,10 @@ code {
 }
 
 .board__plate {
-  background: var(--signal);
+  background: #fff;
   color: var(--ink);
   border: 3px solid var(--ink);
-  outline: 3px solid var(--signal);
+  outline: 3px solid #fff;
   border-radius: var(--radius-sm);
   padding: 6px 16px 8px;
   align-self: flex-start;
@@ -205,8 +208,8 @@ code {
 }
 
 .segmented__btn.is-active {
-  background: var(--signal);
-  color: var(--ink);
+  background: #fff;
+  color: var(--brand);
 }
 
 .segmented__btn:disabled {
@@ -242,13 +245,13 @@ code {
 .section--waiting {
   background: repeating-linear-gradient(
     135deg,
-    #fffdf4,
-    #fffdf4 12px,
-    #fff8dc 12px,
-    #fff8dc 24px
+    #fafafb,
+    #fafafb 12px,
+    #f1f0f4 12px,
+    #f1f0f4 24px
   );
   border-style: dashed;
-  border-color: #d9b948;
+  border-color: #c9c8d0;
 }
 
 .section__head {
@@ -300,7 +303,7 @@ code {
 }
 
 .card--waiting {
-  border-inline-start-color: var(--signal-deep);
+  border-inline-start-color: var(--waiting);
 }
 
 .card--large {
@@ -624,7 +627,7 @@ code {
 }
 
 .arrivedCard__close:not(:disabled):hover {
-  background: rgba(14, 42, 38, 0.08);
+  background: rgba(29, 29, 34, 0.08);
 }
 
 .arrivedCard__by {
@@ -656,21 +659,21 @@ code {
 }
 
 .btn--primary {
-  background: var(--ink);
+  background: var(--brand);
   color: #fff;
 }
 
 .btn--primary:not(:disabled):hover {
-  background: #17413b;
+  background: var(--brand-deep);
 }
 
 .btn--signal {
-  background: var(--signal);
-  color: var(--ink);
+  background: var(--ink);
+  color: #fff;
 }
 
 .btn--signal:not(:disabled):hover {
-  background: var(--signal-deep);
+  background: #000;
 }
 
 .btn--ghost {
@@ -710,8 +713,8 @@ code {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: var(--ink);
-  background-image: radial-gradient(rgba(255, 196, 0, 0.14) 1px, transparent 1.2px);
+  background: var(--brand);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1.2px);
   background-size: 9px 9px;
 }
 
@@ -724,7 +727,7 @@ code {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border-top: 8px solid var(--signal);
+  border-top: 8px solid var(--brand);
 }
 
 .dialog h1 {
@@ -860,7 +863,7 @@ code {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 3px solid rgba(14, 42, 38, 0.2);
+  border: 3px solid rgba(29, 29, 34, 0.2);
   border-top-color: var(--ink);
   animation: spin 0.8s linear infinite;
   display: inline-block;
@@ -937,16 +940,16 @@ code {
   margin-inline-start: 8px;
   padding: 0 8px;
   border-radius: 999px;
-  background: var(--signal);
-  color: var(--ink);
+  background: var(--brand);
+  color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
   vertical-align: middle;
 }
 
 .card--me {
-  border-color: var(--signal-deep);
-  box-shadow: 0 0 0 3px rgba(255, 196, 0, 0.35);
+  border-color: var(--waiting);
+  box-shadow: 0 0 0 3px rgba(229, 30, 37, 0.35);
 }
 
 .card__pills {
@@ -995,7 +998,7 @@ code {
 }
 
 .passengers li.is-me {
-  background: rgba(255, 196, 0, 0.18);
+  background: rgba(229, 30, 37, 0.12);
   border-radius: var(--radius-sm);
   padding-inline: 8px;
 }
@@ -1132,7 +1135,8 @@ code {
 }
 
 .busMapBtn--accent {
-  background: var(--signal);
+  background: var(--brand);
+  color: #fff;
 }
 
 .busMapInfo {
@@ -1143,7 +1147,7 @@ code {
   max-width: 60%;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(14, 42, 38, 0.88);
+  background: rgba(29, 29, 34, 0.88);
   color: #fff;
   font-size: 0.85rem;
   white-space: nowrap;
@@ -1162,8 +1166,8 @@ code {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--signal);
-  border: 3px solid var(--ink);
+  background: #fff;
+  border: 3px solid var(--brand);
   font-size: 20px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
@@ -1298,7 +1302,7 @@ code {
   place-items: center;
   padding: 16px;
   overflow-y: auto;
-  background: rgba(14, 42, 38, 0.6);
+  background: rgba(29, 29, 34, 0.6);
 }
 
 .dialog__actions {

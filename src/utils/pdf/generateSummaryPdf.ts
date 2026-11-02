@@ -18,8 +18,8 @@ export interface SummaryPdfData {
 const PAGE = { width: 595.28, height: 841.89, margin: 48 };
 const NON_ASCII = /[^\u0000-\u007F]/;
 const FONT_STACK = `"IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif`;
-const INK: [number, number, number] = [14, 42, 38];
-const MUTED: [number, number, number] = [100, 112, 110];
+const INK: [number, number, number] = [29, 29, 34];
+const MUTED: [number, number, number] = [110, 109, 118];
 
 interface TextStyle {
   size?: number;
@@ -79,7 +79,7 @@ export function generateSummaryPdf(data: SummaryPdfData): void {
     y += 28;
     drawText(doc, `Bus Passenger Summary – ${tripLabel}`, PAGE.margin, y, { size: 20, bold: true });
     y += 14;
-    doc.setDrawColor(255, 196, 0);
+    doc.setDrawColor(229, 30, 37); // J&T red
     doc.setLineWidth(3);
     doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
     y += 28;
@@ -100,7 +100,7 @@ export function generateSummaryPdf(data: SummaryPdfData): void {
     y += 14;
     drawText(doc, 'Passengers:', PAGE.margin, y, { size: 13, bold: true });
     y += 10;
-    doc.setDrawColor(200, 206, 204);
+    doc.setDrawColor(223, 222, 228);
     doc.setLineWidth(0.6);
     doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
     y += 20;
