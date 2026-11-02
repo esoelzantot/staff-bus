@@ -38,10 +38,13 @@ interface Seed {
   type: 'main' | 'waiting';
   going: Status;
   returning: Status;
+  /** IN days earlier this month: stored as the counters AND as real daily records (the reset counts the records). */
   goingInCount?: number;
   returningInCount?: number;
   bus?: string;
 }
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
 
 async function seed(employees: Record<string, Seed>, capacity = 3) {
   await db.doc('buses/bus1').set({
@@ -62,7 +65,18 @@ async function seed(employees: Record<string, Seed>, capacity = 3) {
       returningStatus: e.returning,
       goingInCount: e.goingInCount ?? 0,
       returningInCount: e.returningInCount ?? 0,
+      countMonth: TODAY.slice(0, 7),
     });
+    // the daily records behind those counters: the 1st, 2nd, … of this month
+    const days = Math.max(e.goingInCount ?? 0, e.returningInCount ?? 0);
+    for (let d = 1; d <= days; d++) {
+      const date = `${TODAY.slice(0, 7)}-${pad2(d)}`;
+      await db.doc(`employees/${id}/attendance/${date}`).set({
+        date,
+        goingStatus: d <= (e.goingInCount ?? 0) ? 'in' : 'out',
+        returningStatus: d <= (e.returningInCount ?? 0) ? 'in' : 'out',
+      });
+    }
   }
 }
 
@@ -95,6 +109,18 @@ describe('a new day', () => {
     expect(await employee('MAIN1')).toMatchObject({ goingInCount: 6, returningInCount: 5 });
     expect(await employee('MAIN2')).toMatchObject({ goingInCount: 8, returningInCount: 8 });
     expect(await employee('WAIT1')).toMatchObject({ goingInCount: 2, returningInCount: 1 });
+  });
+
+  it("the counters are THIS month's IN days: last month's records do not count", async () => {
+    await db.doc('employees/MAIN1/attendance/2026-09-30').set({ date: '2026-09-30', goingStatus: 'in', returningStatus: 'in' });
+    await resetAllBuses(db, TODAY);
+    expect(await employee('MAIN1')).toMatchObject({ goingInCount: 6, returningInCount: 5, countMonth: '2026-10' });
+  });
+
+  it('the first day of a new month starts again from today', async () => {
+    await resetAllBuses(db, '2026-11-01');
+    expect(await employee('MAIN1')).toMatchObject({ goingInCount: 1, returningInCount: 1, countMonth: '2026-11' });
+    expect(await employee('WAIT1')).toMatchObject({ goingInCount: 0, returningInCount: 0, countMonth: '2026-11' });
   });
 
   it("creates today's record for everyone (the monthly PDF reads it)", async () => {

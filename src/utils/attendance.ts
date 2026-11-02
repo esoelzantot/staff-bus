@@ -1,4 +1,4 @@
-import type { AttendanceDay, EmployeeStatus } from '../types';
+import type { AttendanceDay, Employee, EmployeeStatus } from '../types';
 
 /** "2026-10-04" → "2026-10". */
 export const monthOf = (day: string): string => day.slice(0, 7);
@@ -49,4 +49,13 @@ export function buildMonth(days: readonly AttendanceDay[], month: string, today:
     goingIn: rows.filter((r) => r.goingStatus === 'in').length,
     returningIn: rows.filter((r) => r.returningStatus === 'in').length,
   };
+}
+
+/**
+ * The IN days shown on a card: this month's (Cairo) counters, or 0 when the stored counters still belong to an
+ * earlier month (between midnight on the 1st and the nightly reset).
+ */
+export function monthInDays(employee: Employee, today: string): { going: number; returning: number } {
+  if (employee.countMonth !== monthOf(today)) return { going: 0, returning: 0 };
+  return { going: employee.goingInCount, returning: employee.returningInCount };
 }

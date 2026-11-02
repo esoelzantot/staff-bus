@@ -5,7 +5,7 @@ export function StatusPill({ label, value, count }: { label: string; value: Empl
   return (
     <div className="pill-row">
       <span>{label}</span>
-      <span className="tally" title={`عدد أيام IN: ${count}`} aria-label={`عدد أيام IN: ${count}`}>
+      <span className="tally" title={`أيام IN الشهر ده: ${count}`} aria-label={`أيام IN الشهر ده: ${count}`}>
         {count}
       </span>
       <span className={`pill pill--${value}`}>{value === 'in' ? 'IN' : 'OUT'}</span>

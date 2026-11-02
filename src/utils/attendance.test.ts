@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AttendanceDay } from '../types';
-import { availableMonths, buildMonth, monthOf } from './attendance';
+import { availableMonths, buildMonth, monthInDays, monthOf } from './attendance';
 
 const day = (date: string, going: 'in' | 'out', returning: 'in' | 'out') =>
   ({ id: date, date, goingStatus: going, returningStatus: returning }) as AttendanceDay;
@@ -57,5 +57,19 @@ describe('buildMonth', () => {
 
   it('is empty for a month that has not started', () => {
     expect(buildMonth([], '2026-11', '2026-10-04').rows).toEqual([]);
+  });
+});
+
+describe('monthInDays (the counter on a card)', () => {
+  const emp = (countMonth: string | undefined) =>
+    ({ goingInCount: 7, returningInCount: 5, countMonth }) as unknown as import('../types').Employee;
+
+  it("shows the counters when they belong to this month", () => {
+    expect(monthInDays(emp('2026-11'), '2026-11-02')).toEqual({ going: 7, returning: 5 });
+  });
+
+  it("shows 0 while the counters still belong to last month (before the reset on the 1st) or are old totals", () => {
+    expect(monthInDays(emp('2026-10'), '2026-11-01')).toEqual({ going: 0, returning: 0 });
+    expect(monthInDays(emp(undefined), '2026-11-02')).toEqual({ going: 0, returning: 0 });
   });
 });

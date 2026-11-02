@@ -1,5 +1,7 @@
 import { FiDownload } from 'react-icons/fi';
 import type { Employee, EmployeeStatus, StatusField } from '../../types';
+import { monthInDays } from '../../utils/attendance';
+import { todayKey } from '../../utils/date/format';
 import { StatusPill } from '../common/StatusPill';
 import { StatusToggle } from '../common/StatusToggle';
 
@@ -31,6 +33,8 @@ export function EmployeeCard({
   exporting = false,
   queueRank,
 }: Props) {
+  // IN days of the current month only (the counters start again at 0 every month)
+  const days = monthInDays(employee, todayKey());
   return (
     <article className={`card card--${employee.type} card--${size}${isMe ? ' card--me' : ''}`}>
       <header className="card__head">
@@ -55,22 +59,22 @@ export function EmployeeCard({
 
       {readOnly || !onChange || !pendingValue ? (
         <div className="card__pills">
-          <StatusPill label="الذهاب" value={employee.goingStatus} count={employee.goingInCount} />
-          <StatusPill label="العودة" value={employee.returningStatus} count={employee.returningInCount} />
+          <StatusPill label="الذهاب" value={employee.goingStatus} count={days.going} />
+          <StatusPill label="العودة" value={employee.returningStatus} count={days.returning} />
         </div>
       ) : (
         <div className="card__toggles">
           <StatusToggle
             label="الذهاب"
             value={employee.goingStatus}
-            count={employee.goingInCount}
+            count={days.going}
             pendingValue={pendingValue(employee.id, 'goingStatus')}
             onChange={(v) => onChange(employee.id, 'goingStatus', v)}
           />
           <StatusToggle
             label="العودة"
             value={employee.returningStatus}
-            count={employee.returningInCount}
+            count={days.returning}
             pendingValue={pendingValue(employee.id, 'returningStatus')}
             onChange={(v) => onChange(employee.id, 'returningStatus', v)}
           />

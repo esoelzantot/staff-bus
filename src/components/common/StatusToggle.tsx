@@ -23,7 +23,7 @@ export function StatusToggle({ label, value, pendingValue, count, disabled, onCh
     <div className="toggle" role="group" aria-label={label}>
       <span className="toggle__label">
         {label}
-        <span className="tally" title={`عدد أيام IN: ${count}`} aria-label={`عدد أيام IN: ${count}`}>
+        <span className="tally" title={`أيام IN الشهر ده: ${count}`} aria-label={`أيام IN الشهر ده: ${count}`}>
           {count}
         </span>
         {saving && <span className="toggle__saving">جارٍ الحفظ…</span>}

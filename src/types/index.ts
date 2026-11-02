@@ -25,11 +25,14 @@ export interface Employee {
   goingStatus: EmployeeStatus;
   returningStatus: EmployeeStatus;
   /**
-   * How many DAYS the employee was IN for Going / Returning (lifetime tally). A day counts once, however many
-   * times the status was toggled; main employees start every day IN, so they count from midnight.
+   * How many DAYS the employee was IN for Going / Returning in the month `countMonth`. A day counts once, however
+   * many times the status was toggled. Recomputed from the daily records by the nightly reset, so it starts again
+   * at 0 on the first of every month. Show it with monthInDays(), which hides a previous month's number.
    */
   goingInCount: number;
   returningInCount: number;
+  /** yyyy-mm the counters belong to. */
+  countMonth?: string;
   /**
    * Waiting employees only: place in the waiting line ("الدور", 1 = first to take a free seat). Set by managers;
    * missing for employees never ordered (they come after, by name). See src/utils/waitingQueue.ts.

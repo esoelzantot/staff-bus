@@ -1,5 +1,11 @@
 type Status = 'in' | 'out';
 
+/** IN days per direction. */
+export interface InDays {
+  going: number;
+  returning: number;
+}
+
 export interface EmployeeState {
   id: string;
   type: 'main' | 'waiting';
@@ -7,7 +13,9 @@ export interface EmployeeState {
   returningStatus: Status;
   /** Today's IN record (employees/{id}/attendance/{today}) already exists – the person pressed IN / OUT today. */
   hasRecordToday: boolean;
-  /** Current IN tallies (number of IN days per direction). */
+  /** IN days of the CURRENT month BEFORE today, counted from the daily records (attendance). */
+  earlierThisMonth: InDays;
+  /** The stored counters (only for reporting the change). */
   goingInCount?: number;
   returningInCount?: number;
 }
@@ -18,12 +26,16 @@ export interface EmployeePlan {
   /** Statuses the employee has after the reset. */
   going: Status;
   returning: Status;
-  /** Days added to goingInCount / returningInCount (+1, 0 or -1 – see tallyDelta). */
-  goingTally: number;
-  returningTally: number;
-  /** The tallies after the reset (never below zero). */
+  /**
+   * The counters after the reset: IN days of the CURRENT month (yyyy-mm in `countMonth`), today included.
+   * Recomputed from the daily records every night, so they always match the monthly PDF and start again at 0
+   * on the first of every month.
+   */
   goingInCount: number;
   returningInCount: number;
+  /** Change of the counters (reporting / tests). */
+  goingTally: number;
+  returningTally: number;
   /** Today's record: 'create' = there is none yet, 'update' = the person already pressed IN / OUT today. */
   record: 'create' | 'update';
   /** The person had chosen something else today (after midnight) – the reset put them back to the start. */
@@ -45,35 +57,25 @@ export const startStatus = (type: EmployeeState['type']): Status => (type === 'm
 const isIn = (s: Status) => (s === 'in' ? 1 : 0);
 
 /**
- * How many IN days a direction gains with the reset.
- *  - No record today: today has not been counted yet → +1 when the day starts IN.
- *  - A record today: the person pressed IN / OUT after midnight, and every press already moved the tally
- *    (OUT → IN +1, IN → OUT -1), so today is counted exactly when the CURRENT status is IN. The reset only
- *    applies the difference: IN → OUT -1, OUT → IN +1, unchanged 0. A day is never counted twice or lost.
- */
-const tallyDelta = (current: Status, start: Status, hasRecordToday: boolean) =>
-  hasRecordToday ? isIn(start) - isIn(current) : isIn(start);
-
-/**
  * Daily start of a bus – the rule, without exceptions:
  *   every MAIN employee    → IN for Going and Returning
  *   every WAITING employee → OUT for Going and Returning
- * whatever anyone chose since midnight; the IN tallies and today's record follow (see tallyDelta).
- * Refused only when the main employees alone do not fit the bus (a roster problem to fix first).
+ * whatever anyone chose since midnight. The counters become this month's IN days: the days before today (from the
+ * records) + today with the start status. Refused only when the main employees alone do not fit the bus.
  */
 export function planBusReset(capacity: number, employees: EmployeeState[]): BusResetPlan {
   const plans: EmployeePlan[] = employees.map((e) => {
     const start = startStatus(e.type);
-    const goingTally = tallyDelta(e.goingStatus, start, e.hasRecordToday);
-    const returningTally = tallyDelta(e.returningStatus, start, e.hasRecordToday);
+    const goingInCount = e.earlierThisMonth.going + isIn(start);
+    const returningInCount = e.earlierThisMonth.returning + isIn(start);
     return {
       id: e.id,
       going: start,
       returning: start,
-      goingTally,
-      returningTally,
-      goingInCount: Math.max(0, (e.goingInCount ?? 0) + goingTally),
-      returningInCount: Math.max(0, (e.returningInCount ?? 0) + returningTally),
+      goingInCount,
+      returningInCount,
+      goingTally: goingInCount - (e.goingInCount ?? 0),
+      returningTally: returningInCount - (e.returningInCount ?? 0),
       record: e.hasRecordToday ? 'update' : 'create',
       overridden: e.hasRecordToday && (e.goingStatus !== start || e.returningStatus !== start),
     };
@@ -87,21 +89,24 @@ export function planBusReset(capacity: number, employees: EmployeeState[]): BusR
 }
 
 /**
- * One-time start of the daily record on an existing system (npm run attendance-start): today's record is
- * created from the statuses people have RIGHT NOW, and every direction that is IN counts as today's day.
+ * Counters for today WITHOUT changing anyone's statuses (npm run recount-month, attendance-start): this month's IN
+ * days = the days before today (records) + today with the CURRENT statuses. `record: 'create'` only for employees
+ * without today's record (the others keep theirs).
  */
-export function planSnapshot(employees: EmployeeState[]): EmployeePlan[] {
-  return employees
-    .filter((e) => !e.hasRecordToday)
-    .map((e) => ({
+export function planRecount(employees: EmployeeState[]): EmployeePlan[] {
+  return employees.map((e) => {
+    const goingInCount = e.earlierThisMonth.going + isIn(e.goingStatus);
+    const returningInCount = e.earlierThisMonth.returning + isIn(e.returningStatus);
+    return {
       id: e.id,
       going: e.goingStatus,
       returning: e.returningStatus,
-      goingTally: isIn(e.goingStatus),
-      returningTally: isIn(e.returningStatus),
-      goingInCount: (e.goingInCount ?? 0) + isIn(e.goingStatus),
-      returningInCount: (e.returningInCount ?? 0) + isIn(e.returningStatus),
-      record: 'create',
+      goingInCount,
+      returningInCount,
+      goingTally: goingInCount - (e.goingInCount ?? 0),
+      returningTally: returningInCount - (e.returningInCount ?? 0),
+      record: e.hasRecordToday ? 'update' : 'create',
       overridden: false,
-    }));
+    };
+  });
 }

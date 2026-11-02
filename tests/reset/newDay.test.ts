@@ -54,10 +54,11 @@ beforeEach(async () => {
     returningCount: 1,
   });
   const people = {
-    MAIN1: { type: 'main', going: 'out', count: 10 },
-    MAIN2: { type: 'main', going: 'out', count: 10 },
-    WAIT1: { type: 'waiting', going: 'in', count: 3 },
-    WAIT2: { type: 'waiting', going: 'out', count: 3 },
+    // no IN days earlier this month: the counters start from today (they are THIS month's IN days)
+    MAIN1: { type: 'main', going: 'out', count: 0 },
+    MAIN2: { type: 'main', going: 'out', count: 0 },
+    WAIT1: { type: 'waiting', going: 'in', count: 0 },
+    WAIT2: { type: 'waiting', going: 'out', count: 0 },
   } as const;
   for (const [id, p] of Object.entries(people)) {
     await admin.doc(`employees/${id}`).set({
@@ -110,15 +111,15 @@ describe('a new day: reset at night, then everyone chooses freely', () => {
   it('starts the day: main IN / IN, waiting OUT / OUT, direction Going', async () => {
     const result = await resetAllBuses(admin, today);
     expect(result.failed).toBe(false);
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in', goingInCount: 11 });
-    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'out', returningStatus: 'out', goingInCount: 3 });
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in', goingInCount: 1 });
+    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'out', returningStatus: 'out', goingInCount: 0 });
     expect(await bus()).toMatchObject({ goingCount: 2, returningCount: 2, activeTripType: 'going' });
   });
 
   it('a main employee can go OUT, and the day is taken back from the tally and the record', async () => {
     await resetAllBuses(admin, today);
     await assertSucceeds(pressGoing('MAIN1', 'out'));
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 10 });
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 0 });
     expect(await record('MAIN1')).toMatchObject({ goingStatus: 'out', returningStatus: 'in' });
     expect(await bus()).toMatchObject({ goingCount: 1 });
   });
@@ -126,7 +127,7 @@ describe('a new day: reset at night, then everyone chooses freely', () => {
   it('a waiting employee can take a free seat (IN), and it counts as an IN day', async () => {
     await resetAllBuses(admin, today);
     await assertSucceeds(pressGoing('WAIT1', 'in'));
-    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'in', goingInCount: 4 });
+    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'in', goingInCount: 1 });
     expect(await record('WAIT1')).toMatchObject({ goingStatus: 'in' });
     expect(await bus()).toMatchObject({ goingCount: 3 });
   });
@@ -134,7 +135,7 @@ describe('a new day: reset at night, then everyone chooses freely', () => {
   it('changing your mind many times still counts ONE day', async () => {
     await resetAllBuses(admin, today);
     for (const value of ['out', 'in', 'out', 'in'] as const) await assertSucceeds(pressGoing('MAIN1', value));
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', goingInCount: 11 });
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', goingInCount: 1 });
     expect(await record('MAIN1')).toMatchObject({ goingStatus: 'in' });
   });
 
@@ -152,27 +153,28 @@ describe('a new day: reset at night, then everyone chooses freely', () => {
 
     const again = await resetAllBuses(admin, today);
     expect(again.buses[0]).toMatchObject({ status: 'already-done' });
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 10 });
-    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'in', goingInCount: 4 });
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'out', goingInCount: 0 });
+    expect(await employee('WAIT1')).toMatchObject({ goingStatus: 'in', goingInCount: 1 });
     expect(await bus()).toMatchObject({ goingCount: 2 });
   });
 
   it('a WAITING employee who pressed IN after midnight, BEFORE the reset, is put back to OUT (tally + record fixed)', async () => {
-    await pressGoing('WAIT2', 'in'); // 00:02 – the reset has not run yet; tally 3 → 4
+    await pressGoing('WAIT2', 'in'); // 00:02 – the reset has not run yet; counter 0 → 1
     const result = await resetAllBuses(admin, today);
     expect(result.buses[0]).toMatchObject({ status: 'done', overridden: ['WAIT2'] });
-    expect(await employee('WAIT2')).toMatchObject({ goingStatus: 'out', returningStatus: 'out', goingInCount: 3 });
+    expect(await employee('WAIT2')).toMatchObject({ goingStatus: 'out', returningStatus: 'out', goingInCount: 0 });
     expect(await record('WAIT2')).toMatchObject({ goingStatus: 'out', returningStatus: 'out' });
     expect(await bus()).toMatchObject({ goingCount: 2, returningCount: 2 });
   });
 
   it('a MAIN employee who pressed OUT after midnight, BEFORE the reset, is put back to IN (today counted once)', async () => {
-    await resetAllBuses(admin, '2026-01-01'); // an earlier day: MAIN1 IN, tally 11
-    await admin.doc('employees/MAIN1').update({ goingStatus: 'out', returningStatus: 'out' }); // went OUT yesterday
-    await pressGoing('MAIN1', 'in'); // 00:02 today: IN → tally 12, record today
-    await pressGoing('MAIN1', 'out'); // changed mind: OUT → tally 11
+    await resetAllBuses(admin, '2026-01-01'); // a day of another month: MAIN1 IN (counted in January)
+    await admin.doc('employees/MAIN1').update({ goingStatus: 'out', returningStatus: 'out' }); // went OUT later
+    await pressGoing('MAIN1', 'in'); // 00:02 today: IN, record today
+    await pressGoing('MAIN1', 'out'); // changed mind: OUT
     await resetAllBuses(admin, today);
-    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in', goingInCount: 12 });
+    // this month: only today, once – January's day is not part of it
+    expect(await employee('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in', goingInCount: 1 });
     expect(await record('MAIN1')).toMatchObject({ goingStatus: 'in', returningStatus: 'in' });
   });
 

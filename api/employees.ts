@@ -231,6 +231,7 @@ export async function createEmployee(a: Admin, body: Body): Promise<void> {
       returningStatus: initial,
       goingInCount: todayTally,
       returningInCount: todayTally,
+      countMonth: cairoDay().slice(0, 7), // the counters are this month's IN days
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
