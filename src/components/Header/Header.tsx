@@ -16,6 +16,11 @@ export function Header({ bus, buses, onSelectBus, onTripChange, tripBusy, onLogo
   const today = useToday();
   return (
     <header className="board">
+      <span className="speedLines speedLines--board" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
       <div className="board__sign">
         <div className="board__route">
           <span className="board__caption">المسار</span>

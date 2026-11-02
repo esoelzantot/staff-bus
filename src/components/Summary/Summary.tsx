@@ -1,6 +1,7 @@
 import { FiDownload } from 'react-icons/fi';
 import type { Employee, TripType } from '../../types';
 import { EmptyState } from '../common/EmptyState';
+import { SeatMap } from '../common/SeatMap';
 
 interface Props {
   tripType: TripType;
@@ -11,8 +12,6 @@ interface Props {
 
 export function Summary({ tripType, capacity, passengers, onExport }: Props) {
   const count = passengers.length;
-  const full = count >= capacity;
-  const pct = Math.min(100, Math.round((count / Math.max(capacity, 1)) * 100));
 
   return (
     <section className="section summary" aria-labelledby="summary-title">
@@ -23,24 +22,8 @@ export function Summary({ tripType, capacity, passengers, onExport }: Props) {
         </button>
       </div>
 
-      <div className="meter" aria-live="polite">
-        <div className="meter__numbers">
-          <strong>
-            <bdi className="num">
-              {count} / {capacity}
-            </bdi>
-          </strong>
-          <span>{full ? 'الأتوبيس ممتلئ' : `متبقي ${capacity - count} مقعد`}</span>
-        </div>
-        <div
-          className={`meter__bar${full ? ' is-full' : ''}`}
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={capacity}
-          aria-valuenow={count}
-        >
-          <span style={{ width: `${pct}%` }} />
-        </div>
+      <div aria-live="polite">
+        <SeatMap label={tripType === 'going' ? 'الذهاب' : 'العودة'} capacity={capacity} taken={count} />
       </div>
 
       {count === 0 ? (

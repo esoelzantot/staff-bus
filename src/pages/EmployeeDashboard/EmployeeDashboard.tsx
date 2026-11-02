@@ -7,6 +7,7 @@ import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
 import { PassengerList } from '../../components/PassengerList/PassengerList';
 import { ReminderSettings } from '../../components/ReminderSettings/ReminderSettings';
 import { EmptyState } from '../../components/common/EmptyState';
+import { SeatMap } from '../../components/common/SeatMap';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { Spinner } from '../../components/common/Spinner';
 import { useBus, useBusEmployees, useEmployeeRecord, useToday, useTodayGoingTrip } from '../../hooks/useBusData';
@@ -96,7 +97,12 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
     <main className="page">
       <div className="topbar">
         <h1>سجلي في الأتوبيس</h1>
-        <button type="button" className="btn btn--ghost" onClick={onLogout}>
+        <span className="speedLines" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <button type="button" className="btn btn--ghost btn--onDark" onClick={onLogout}>
           <FiLogOut aria-hidden="true" /> تغيير الموظف
         </button>
       </div>
@@ -126,21 +132,9 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
                 <span className="busInfo__caption">الأتوبيس</span>
                 <strong dir="auto">{bus.data.busNumber}</strong>
               </div>
-              <div>
-                <span className="busInfo__caption">الذهاب</span>
-                <strong>
-                  <bdi className="num">
-                    {bus.data.goingCount} / {bus.data.capacity}
-                  </bdi>
-                </strong>
-              </div>
-              <div>
-                <span className="busInfo__caption">العودة</span>
-                <strong>
-                  <bdi className="num">
-                    {bus.data.returningCount} / {bus.data.capacity}
-                  </bdi>
-                </strong>
+              <div className="busInfo__seats">
+                <SeatMap label="الذهاب" capacity={bus.data.capacity} taken={bus.data.goingCount} />
+                <SeatMap label="العودة" capacity={bus.data.capacity} taken={bus.data.returningCount} />
               </div>
             </section>
           )}

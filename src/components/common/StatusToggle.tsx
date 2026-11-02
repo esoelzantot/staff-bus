@@ -1,8 +1,10 @@
 import { FiCheck, FiX } from 'react-icons/fi';
-import type { EmployeeStatus } from '../../types';
+import type { EmployeeStatus, TripType } from '../../types';
+import { DaysChip } from './DaysChip';
+import { TRIP_LABEL, TripIcon } from './TripIcon';
 
 interface Props {
-  label: string;
+  trip: TripType;
   value: EmployeeStatus;
   /** Value currently being saved, or null when idle. */
   pendingValue: EmployeeStatus | null;
@@ -12,7 +14,8 @@ interface Props {
   onChange: (value: EmployeeStatus) => void;
 }
 
-export function StatusToggle({ label, value, pendingValue, count, disabled, onChange }: Props) {
+export function StatusToggle({ trip, value, pendingValue, count, disabled, onChange }: Props) {
+  const label = TRIP_LABEL[trip];
   const saving = pendingValue !== null;
   const options: { key: EmployeeStatus; text: string }[] = [
     { key: 'in', text: 'IN' },
@@ -22,10 +25,11 @@ export function StatusToggle({ label, value, pendingValue, count, disabled, onCh
   return (
     <div className="toggle" role="group" aria-label={label}>
       <span className="toggle__label">
-        {label}
-        <span className="tally" title={`أيام IN الشهر ده: ${count}`} aria-label={`أيام IN الشهر ده: ${count}`}>
-          {count}
+        <span className="trip__dir">
+          <TripIcon trip={trip} />
+          {label}
         </span>
+        <DaysChip count={count} />
         {saving && <span className="toggle__saving">جارٍ الحفظ…</span>}
       </span>
       <div className="toggle__buttons">

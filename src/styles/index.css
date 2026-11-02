@@ -447,48 +447,12 @@ code {
 }
 
 /* ── Summary ────────────────────────────────────────────────────────────── */
-.meter {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.meter__numbers {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
 
-.meter__numbers strong {
-  font-size: 2.2rem;
-  line-height: 1;
-  font-weight: 700;
-}
 
-.meter__numbers span {
-  color: var(--muted);
-  font-weight: 500;
-}
 
-.meter__bar {
-  height: 14px;
-  border-radius: 999px;
-  background: var(--paper);
-  overflow: hidden;
-  border: 1px solid var(--line);
-}
 
-.meter__bar span {
-  display: block;
-  height: 100%;
-  background: var(--in);
-  transition: width 0.25s ease;
-}
 
-.meter__bar.is-full span {
-  background: var(--out);
-}
 
 .passengers {
   margin: 0;
@@ -958,14 +922,6 @@ code {
   flex-wrap: wrap;
 }
 
-.pill-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: var(--ink-soft);
-  font-weight: 600;
-}
 
 .pill {
   min-width: 48px;
@@ -1008,19 +964,6 @@ code {
 }
 
 /* ── Tallies + responsive columns ───────────────────────────────────────── */
-.tally {
-  display: inline-grid;
-  place-items: center;
-  min-width: 26px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  direction: ltr;
-}
 
 .twoCol {
   display: grid;
@@ -1370,4 +1313,727 @@ code {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Creative layer – "speed & travel" in the J&T identity
+   speed lines (the strokes of the J&T logo) · boarding-pass tickets · seat map · light motion
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── Speed lines: three skewed bars, like the strokes beside the J&T "T" ── */
+.speedLines {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.speedLines i {
+  display: block;
+  height: 5px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: skewX(-30deg);
+}
+
+.speedLines i:nth-child(1) {
+  width: 46px;
+}
+
+.speedLines i:nth-child(2) {
+  width: 34px;
+  margin-inline-start: 8px;
+}
+
+.speedLines i:nth-child(3) {
+  width: 22px;
+  margin-inline-start: 16px;
+}
+
+/* ── Section titles: a red speed mark before every heading ── */
+.section__head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section__head h2::before {
+  content: '';
+  width: 6px;
+  height: 1.05em;
+  border-radius: 2px;
+  background: var(--brand);
+  transform: skewX(-18deg);
+  flex: none;
+}
+
+.section {
+  box-shadow: 0 1px 2px rgba(29, 29, 34, 0.04), 0 6px 20px rgba(29, 29, 34, 0.04);
+}
+
+/* ── Employee page: a red band at the top ── */
+.topbar {
+  position: relative;
+  overflow: hidden;
+  background: var(--brand);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  background-image: linear-gradient(115deg, transparent 62%, rgba(255, 255, 255, 0.08) 62%, rgba(255, 255, 255, 0.08) 70%, transparent 70%),
+    radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1.2px);
+  background-size: auto, 9px 9px;
+}
+
+.topbar .speedLines {
+  color: rgba(255, 255, 255, 0.85);
+  margin-inline-end: auto;
+}
+
+/* ── Manager header: a ticket – speed lines + a perforated tear line with notches ── */
+.board {
+  position: relative;
+  overflow: hidden;
+}
+
+/* a big, faint watermark behind the content – never in the way of the text */
+.speedLines--board {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 6%;
+  color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-50%) scale(3.2);
+  transform-origin: center;
+}
+
+.board > :not(.speedLines) {
+  position: relative;
+  z-index: 1;
+}
+
+.board__controls {
+  position: relative;
+  padding-top: 16px;
+  border-top: 2px dashed rgba(255, 255, 255, 0.4);
+}
+
+.board__controls::before,
+.board__controls::after {
+  content: '';
+  position: absolute;
+  top: -12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.board__controls::before {
+  inset-inline-start: -31px;
+}
+
+.board__controls::after {
+  inset-inline-end: -31px;
+}
+
+/* ── Bus info (employee page): a boarding pass with the two seat maps ── */
+.busInfo {
+  box-shadow: 0 6px 20px rgba(29, 29, 34, 0.06);
+}
+
+.busInfo > .busInfo__seats {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding: 14px;
+  border-top: 2px dashed var(--line);
+}
+
+/* ── Seat map ── */
+.seatMap {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.seatMap__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  max-width: 132px;
+}
+
+.seatMap__label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.seatMap__count {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.seatMap__of {
+  margin-inline-start: 3px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.seatMap__bus {
+  --seat: 22px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 10px 10px;
+  border: 2px solid var(--line);
+  border-radius: 18px 18px 10px 10px;
+  background: var(--paper);
+}
+
+/* the windscreen */
+.seatMap__front {
+  position: absolute;
+  inset-block-start: 5px;
+  inset-inline: 22%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.seatMap__row {
+  display: grid;
+  /* 2 seats | the aisle | 2 seats */
+  grid-template-columns: var(--seat) var(--seat) 6px var(--seat) var(--seat);
+  column-gap: 4px;
+}
+
+.seatMap__row > :nth-child(3) {
+  grid-column: 4;
+}
+
+.seat {
+  width: var(--seat);
+  height: calc(var(--seat) * 0.9);
+  border: 2px solid #c9c8d0;
+  border-radius: 6px 6px 4px 4px;
+  background: var(--surface);
+  transition: background-color 0.35s, border-color 0.35s, transform 0.35s;
+}
+
+.seat.is-taken {
+  background: var(--brand);
+  border-color: var(--brand-deep);
+}
+
+.seatMap__note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--in);
+}
+
+.seatMap.is-full .seatMap__note {
+  color: var(--brand);
+}
+
+.seatMap--small .seatMap__bus {
+  --seat: 16px;
+}
+
+/* ── My card: a boarding pass ── */
+.card--me {
+  position: relative;
+  border-color: var(--line);
+  border-top: 6px solid var(--brand);
+  box-shadow: 0 10px 30px rgba(229, 30, 37, 0.12);
+}
+
+.card--me .card__head {
+  padding-bottom: 14px;
+  border-bottom: 2px dashed var(--line);
+}
+
+/* ── Cards: a little depth and lift ── */
+.card {
+  box-shadow: 0 1px 2px rgba(29, 29, 34, 0.05);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    box-shadow: 0 8px 24px rgba(29, 29, 34, 0.08);
+    transform: translateY(-1px);
+  }
+}
+
+/* ── IN / OUT: a press feels like a press ── */
+.toggle__btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.toggle__btn.is-active {
+  animation: toggle-pop 0.28s ease-out;
+}
+
+.toggle__btn--in.is-active {
+  box-shadow: 0 6px 16px rgba(23, 122, 66, 0.28);
+}
+
+.toggle__btn--out.is-active {
+  box-shadow: 0 6px 16px rgba(159, 18, 25, 0.22);
+}
+
+@keyframes toggle-pop {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── Sign-in: the brand first ── */
+.dialog-backdrop {
+  position: relative;
+  overflow: hidden;
+}
+
+/* big speed strokes across the red background */
+.dialog-backdrop::before,
+.dialog-backdrop::after {
+  content: '';
+  position: absolute;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  transform: skewX(-30deg);
+}
+
+.dialog-backdrop::before {
+  width: 62%;
+  inset-block-start: 14%;
+  inset-inline-start: -8%;
+  box-shadow: 40px 46px 0 -4px rgba(255, 255, 255, 0.07), 80px 92px 0 -8px rgba(255, 255, 255, 0.05);
+}
+
+.dialog-backdrop::after {
+  width: 54%;
+  inset-block-end: 12%;
+  inset-inline-end: -10%;
+  box-shadow: -40px -46px 0 -4px rgba(255, 255, 255, 0.07);
+}
+
+.dialog--login {
+  position: relative;
+  border-top: none;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25);
+  animation: rise 0.45s ease-out;
+}
+
+.loginBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 2px dashed var(--line);
+  color: var(--brand);
+}
+
+.loginBrand__logo {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  fill: var(--brand);
+}
+
+.loginBrand__name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin-inline-end: auto;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* nobody gets motion they asked not to have */
+@media (prefers-reduced-motion: reduce) {
+  .toggle__btn.is-active,
+  .dialog--login {
+    animation: none;
+  }
+
+  .card,
+  .seat {
+    transition: none;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .seatMap__bus {
+    --seat: 18px;
+  }
+}
+
+/* ── Employee card: a bus ticket ─────────────────────────────────────────
+   [ avatar · name · the two directions ]  ┊  [ stub: bus = main / clock = waiting ]
+   The perforated line has two notches, cut out of the card with a mask so they work on any background.
+   The app is RTL: the stub is on the LEFT, so the notches sit --stub from the left edge. */
+.card {
+  --stub: 66px;
+  padding: 0;
+  gap: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--stub);
+  -webkit-mask:
+    radial-gradient(circle 9px at var(--stub) 0, #0000 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle 9px at var(--stub) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle 9px at var(--stub) 0, #0000 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle 9px at var(--stub) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+}
+
+.card--large {
+  --stub: 84px;
+  padding: 0;
+}
+
+.card__body {
+  min-width: 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card--large .card__body {
+  padding: 20px;
+  gap: 18px;
+}
+
+.card__head {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+}
+
+/* the stub */
+.card__stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-inline-start: 2px dashed var(--line);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.card--waiting .card__stub {
+  background: var(--waiting-soft);
+  color: var(--waiting);
+}
+
+.stub__glyph {
+  width: 30px;
+  height: 30px;
+  fill: currentColor;
+}
+
+svg.stub__glyph .stub__window {
+  fill: #fff;
+}
+
+.card--waiting .stub__glyph {
+  fill: none;
+}
+
+.card--large .stub__glyph {
+  width: 40px;
+  height: 40px;
+}
+
+
+/* the avatar: initials, red for main, grey for waiting */
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.card--waiting .avatar {
+  background: var(--waiting-soft);
+  color: var(--waiting);
+  border: 2px solid var(--waiting);
+}
+
+.card--large .avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1.2rem;
+}
+
+.card--me .avatar {
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--brand);
+}
+
+/* the two directions: icon + name · this month's days · IN / OUT */
+.card__pills {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.trip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.trip__dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-end: auto;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.trip__dir svg {
+  color: var(--muted);
+}
+
+.trip--in .trip__dir svg {
+  color: var(--in);
+}
+
+.toggle__label {
+  align-items: center;
+}
+
+.days {
+  white-space: nowrap;
+  padding: 1px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.days__n {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.days--zero {
+  color: var(--muted);
+}
+
+.days--zero .days__n {
+  color: var(--muted);
+}
+
+/* the name line: the name, then its tags (queue number, "أنت"), wrapping neatly when the name is long */
+.card__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.card__name .queueTag,
+.card__name .meTag {
+  margin-inline-start: 0;
+}
+
+@media (max-width: 480px) {
+  .card--large {
+    --stub: 70px;
+  }
+
+  .card--large .card__name {
+    font-size: 1.3rem;
+  }
+}
+
+/* ── Compact ticket: the same idea, about half the height ─────────────── */
+.card {
+  --stub: 44px;
+}
+
+.card--large {
+  --stub: 54px;
+}
+
+.card__body {
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.card--large .card__body {
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.card__head {
+  gap: 10px;
+}
+
+.card__name {
+  font-size: 1rem;
+}
+
+.card--large .card__name {
+  font-size: 1.2rem;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 0.8rem;
+}
+
+.card--large .avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 0.95rem;
+}
+
+.stub__glyph,
+.card--large .stub__glyph {
+  width: 24px;
+  height: 24px;
+}
+
+/* my card: the red top line stays, the tear line goes (height) */
+.card--me {
+  border-top-width: 4px;
+}
+
+.card--me .card__head {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* read-only: the two directions as two chips side by side, coloured by the status */
+.card__pills {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trip {
+  flex: 1 1 0;
+  min-width: max-content;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.trip--in {
+  background: var(--in-soft);
+  border-color: rgba(23, 122, 66, 0.25);
+}
+
+.trip--out {
+  background: var(--out-soft);
+  border-color: rgba(159, 18, 25, 0.15);
+}
+
+.trip__dir {
+  font-size: 0.82rem;
+  gap: 4px;
+}
+
+.trip .pill {
+  min-width: 0;
+  padding: 1px 7px;
+  font-size: 0.72rem;
+}
+
+.trip .days {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.72rem;
+}
+
+/* with buttons: one line per direction – the label on one side, IN / OUT on the other */
+.card .toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.card .toggle__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.card .toggle__buttons {
+  flex: none;
+  width: 156px;
+  gap: 6px;
+}
+
+.card .toggle__btn {
+  min-height: 40px;
+  font-size: 0.85rem;
+  gap: 4px;
+}
+
+.card--large .toggle__btn {
+  min-height: 44px;
+}
+
+.card .card__toggles,
+.card--large .card__toggles,
+.card--regular .card__toggles {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card .toggle__saving {
+  flex-basis: 100%;
 }
