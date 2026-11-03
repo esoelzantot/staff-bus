@@ -510,72 +510,14 @@ code {
 /* today's day/date: full width on phones, first cell of the row on wider screens */
 
 /* ── Footer + arrival card ─────────────────────────────────────────────── */
-.footer {
-  margin-top: 8px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
 
-.arrivedCard {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  background: var(--in-soft);
-  border: 2px solid var(--in);
-  border-radius: var(--radius-lg);
-  color: var(--ink);
-}
 
-.arrivedCard__icon {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  color: var(--in);
-}
 
-.arrivedCard__body {
-  flex: 1;
-  min-width: 0;
-}
 
-.arrivedCard__body strong {
-  display: block;
-  font-size: 1.15rem;
-  font-weight: 700;
-}
 
-.arrivedCard__time {
-  display: block;
-  margin-top: 2px;
-  color: var(--ink-soft);
-  font-size: 1rem;
-  font-variant-numeric: tabular-nums;
-}
 
-.arrivedCard__close {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
 
-.arrivedCard__close:not(:disabled):hover {
-  background: rgba(29, 29, 34, 0.08);
-}
 
-.arrivedCard__by {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 .btn {
@@ -2350,15 +2292,6 @@ svg.stub__glyph .stub__window {
   color: var(--out);
 }
 
-.arrivalHistory__split {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
 
 .arrivalHistory__rule {
   color: var(--muted);
@@ -2372,4 +2305,280 @@ svg.stub__glyph .stub__window {
 .welcome__time--late {
   background: var(--out-soft);
   color: var(--out);
+}
+
+/* ── "وصلنا" – a red trip card: a bus drives along the road towards the flag ── */
+.arriveCta {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--brand);
+  color: #fff;
+  text-align: center;
+  background-image: linear-gradient(115deg, transparent 60%, rgba(255, 255, 255, 0.08) 60%, rgba(255, 255, 255, 0.08) 68%, transparent 68%),
+    radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1.2px);
+  background-size: auto, 9px 9px;
+  box-shadow: 0 12px 28px rgba(229, 30, 37, 0.25);
+}
+
+/* the road: a dashed lane, the bus on the right (RTL start), the flag at the end */
+.arriveCta__road {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  border-bottom: 3px dashed rgba(255, 255, 255, 0.55);
+}
+
+.arriveCta__bus {
+  position: absolute;
+  inset-block-end: 2px;
+  inset-inline-start: 0;
+  width: 40px;
+  height: 40px;
+  fill: #fff;
+  animation: bus-drive 3.6s ease-in-out infinite;
+}
+
+.arriveCta__bus .arriveCta__window {
+  fill: var(--brand);
+}
+
+.arriveCta__flag {
+  position: absolute;
+  inset-block-end: 4px;
+  inset-inline-end: 0;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+@keyframes bus-drive {
+  0% {
+    inset-inline-start: 0;
+  }
+  70%,
+  100% {
+    inset-inline-start: calc(100% - 82px);
+  }
+}
+
+.arriveCta__title {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.arriveCta__hint {
+  font-size: 0.88rem;
+  opacity: 0.9;
+  line-height: 1.6;
+}
+
+.arriveCta__btn {
+  margin-top: 4px;
+  width: 100%;
+  min-height: 58px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--brand);
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 0 var(--brand-deep), 0 12px 22px rgba(0, 0, 0, 0.18);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.arriveCta__btn:not(:disabled):active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--brand-deep), 0 6px 12px rgba(0, 0, 0, 0.18);
+}
+
+.arriveCta__btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.arriveCta__btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+/* ── "حمد لله على السلامة 😇😇" – a ticket: the arrival on the body, the rabbit on the stub ── */
+.arrivedTicket {
+  --stub: 96px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--stub);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--in);
+  /* the two notches on the tear line (RTL: the stub is on the left, --stub from the left edge) */
+  -webkit-mask:
+    radial-gradient(circle 10px at var(--stub) 0, #0000 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle 10px at var(--stub) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle 10px at var(--stub) 0, #0000 98%, #000) top / 100% 51% no-repeat,
+    radial-gradient(circle 10px at var(--stub) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+  animation: rise 0.4s ease-out;
+}
+
+.arrivedTicket.is-late {
+  border-top-color: var(--out);
+}
+
+.arrivedTicket__body {
+  min-width: 0;
+  padding: 16px 16px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arrivedTicket__check {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--in);
+  color: #fff;
+  font-size: 1.1rem;
+  box-shadow: 0 0 0 5px var(--in-soft);
+}
+
+.arrivedTicket.is-late .arrivedTicket__check {
+  background: var(--out);
+  box-shadow: 0 0 0 5px var(--out-soft);
+}
+
+.arrivedTicket__title {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.arrivedTicket__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.arrivedTicket__time {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: var(--in-soft);
+  color: var(--in);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.arrivedTicket.is-late .arrivedTicket__time {
+  background: var(--out-soft);
+  color: var(--out);
+}
+
+.arrivedTicket__by {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.arrivedTicket__stub {
+  display: grid;
+  place-items: end center;
+  border-inline-start: 2px dashed var(--line);
+  background: var(--in-soft);
+  overflow: hidden;
+}
+
+.arrivedTicket.is-late .arrivedTicket__stub {
+  background: var(--out-soft);
+}
+
+.arrivedTicket__stub img {
+  width: auto;
+  height: 112px;
+  margin-bottom: -6px;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15));
+}
+
+.arrivedTicket__close {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-end: calc(var(--stub) + 10px); /* beside the tear line, clear of the title */
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.arrivedTicket__close:not(:disabled):hover {
+  color: var(--out);
+  border-color: var(--out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arriveCta__bus,
+  .arrivedTicket {
+    animation: none;
+  }
+
+  .arriveCta__bus {
+    inset-inline-start: calc(50% - 20px);
+  }
+}
+
+/* the stats: وصول بدري / وصول متأخر / أيام اتسجّلت */
+.arrivalStats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 420px) {
+  .arrivalStats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.arrivalStats__item--early strong {
+  color: var(--in);
+}
+
+.arrivalStats__item--late strong {
+  color: var(--out);
+}
+
+.arrivalStats__item--early {
+  background: var(--in-soft);
+}
+
+.arrivalStats__item--late {
+  background: var(--out-soft);
+}
+
+.arrivalHistory__retry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 0.88rem;
 }

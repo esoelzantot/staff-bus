@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FiChevronDown, FiChevronLeft, FiChevronRight, FiClock, FiDownload } from 'react-icons/fi';
 import { useToday } from '../../hooks/useBusData';
 import { useLiveData } from '../../hooks/useLiveData';
@@ -26,7 +26,17 @@ export function ArrivalHistory({ busId, collapsible = false, exportRoute }: Prop
   const today = useToday();
   const current = monthOf(today);
   const [month, setMonth] = useState(current);
-  const live = useLiveData<ArrivalRecord[]>((ok, err) => subscribeMonthArrivals(busId, month, ok, err), [busId, month]);
+  /** Bumped to subscribe again after an error (e.g. the index is still being built right after a deploy). */
+  const [attempt, setAttempt] = useState(0);
+  const live = useLiveData<ArrivalRecord[]>(
+    (ok, err) => subscribeMonthArrivals(busId, month, ok, err),
+    [busId, month, attempt],
+  );
+  useEffect(() => {
+    if (!live.error) return;
+    const timer = setTimeout(() => setAttempt((n) => n + 1), 15_000);
+    return () => clearTimeout(timer);
+  }, [live.error]);
   const view = useMemo(() => buildArrivalMonth(live.data ?? [], month, today), [live.data, month, today]);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -64,7 +74,11 @@ export function ArrivalHistory({ busId, collapsible = false, exportRoute }: Prop
         </button>
       </div>
 
-      <ErrorBanner message={live.error} />
+      {live.error && (
+        <p className="arrivalHistory__retry" role="status">
+          <span className="spinner spinner--sm" aria-hidden="true" /> سجل الوصول مش متاح دلوقتي – هنحاول تاني تلقائياً.
+        </p>
+      )}
       <ErrorBanner message={exportError} onDismiss={() => setExportError(null)} />
 
       {live.loading ? (
@@ -72,9 +86,8 @@ export function ArrivalHistory({ busId, collapsible = false, exportRoute }: Prop
       ) : (
         <>
           <div className="arrivalStats">
-            <Stat label="متوسط الوصول" value={view.average} />
-            <Stat label="أبكر وصول" value={view.earliest} />
-            <Stat label="أتأخر وصول" value={view.latest} />
+            <Stat label="وصول بدري" days={view.onTime} kind="early" />
+            <Stat label="وصول متأخر" days={view.late} kind="late" />
             <div className="arrivalStats__item">
               <span>أيام اتسجّلت</span>
               <strong>
@@ -85,14 +98,7 @@ export function ArrivalHistory({ busId, collapsible = false, exportRoute }: Prop
             </div>
           </div>
 
-          {view.recorded > 0 && (
-            <p className="arrivalHistory__split">
-              <span className="arrivalBadge arrivalBadge--early">بدري</span> <bdi>{view.onTime}</bdi> يوم
-              <span aria-hidden="true">·</span>
-              <span className="arrivalBadge arrivalBadge--late">متأخر</span> <bdi>{view.late}</bdi> يوم
-              <span className="arrivalHistory__rule">(الموعد لحد 9:00 الصبح)</span>
-            </p>
-          )}
+          <p className="arrivalHistory__rule">الموعد لحد الساعة 9:00 الصبح – بعدها يتحسب تأخير.</p>
 
           {view.rows.length === 0 ? (
             <p className="arrivalHistory__empty">الشهر ده لسه ما بدأش.</p>
@@ -160,12 +166,13 @@ export function ArrivalHistory({ busId, collapsible = false, exportRoute }: Prop
   );
 }
 
-function Stat({ label, value }: { label: string; value: number | null }): ReactNode {
+/** "وصول بدري 12 يوم" / "وصول متأخر 2 يوم" – days of the month, coloured like the badges. */
+function Stat({ label, days, kind }: { label: string; days: number; kind: 'early' | 'late' }): ReactNode {
   return (
-    <div className="arrivalStats__item">
+    <div className={`arrivalStats__item arrivalStats__item--${kind}`}>
       <span>{label}</span>
       <strong>
-        <bdi>{value === null ? '—' : formatMinutes(value)}</bdi>
+        <bdi>{days}</bdi> <small>يوم</small>
       </strong>
     </div>
   );

@@ -102,12 +102,6 @@ export function buildArrivalPdf(data: ArrivalPdfData): jsPDF {
   drawText(doc, `Days recorded: ${view.recorded} of ${rows.length}`, PAGE.margin, y, { size: 12, bold: true });
   drawText(doc, `On time: ${view.onTime}`, PAGE.margin + 230, y, { size: 12, bold: true, color: IN_COLOR });
   drawText(doc, `Late: ${view.late}`, PAGE.margin + 340, y, { size: 12, bold: true, color: OUT_COLOR });
-  y += 22;
-  const t = (m: number | null) => (m === null ? '-' : formatMinutesEn(m));
-  drawText(doc, `Average: ${t(view.average)}    Earliest: ${t(view.earliest)}    Latest: ${t(view.latest)}`, PAGE.margin, y, {
-    size: 11,
-    color: MUTED,
-  });
   y += 30;
 
   y = drawTableHeader(doc, y);

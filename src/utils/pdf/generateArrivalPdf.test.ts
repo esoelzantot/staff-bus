@@ -34,12 +34,11 @@ describe('buildArrivalPdf (monthly bus arrival record)', () => {
     expect(text).toContain('until 9:00 AM');
   });
 
-  it('totals: recorded / on time / late and the times', () => {
+  it('totals: recorded / on time / late (no average – like the app)', () => {
     expect(text).toContain('Days recorded: 2 of 3');
     expect(text).toContain('On time: 1');
     expect(text).toContain('Late: 1');
-    expect(text).toContain('Earliest: 8:38 AM');
-    expect(text).toContain('Latest: 9:25 AM');
+    expect(text).not.toContain('Average');
   });
 
   it('a row per working day in calendar order, with the time and who recorded it', () => {

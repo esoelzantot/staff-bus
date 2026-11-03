@@ -175,6 +175,18 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
             </>
           )}
 
+          {/* "وصلنا" (going direction only) – right above the arrival history */}
+          {bus.data?.activeTripType === 'going' && (
+            <ArrivedFooter
+              trip={trip.data}
+              loading={trip.loading}
+              busy={arriveBusy}
+              canCancel={trip.data?.arrivedById === me.id}
+              onArrive={() => void arrive()}
+              onCancel={() => void cancelArrival()}
+            />
+          )}
+
           <ArrivalHistory busId={me.busId} collapsible />
         </>
       )}
@@ -182,17 +194,6 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
       {/* "وصلنا! 🎉" for everyone watching at the moment the arrival is recorded */}
       {me && <ArrivalWelcome trip={trip.data} loading={trip.loading} name={me.name} />}
 
-      {/* "وصلنا" exists for the going direction only */}
-      {me && bus.data?.activeTripType === 'going' && (
-        <ArrivedFooter
-          trip={trip.data}
-          loading={trip.loading}
-          busy={arriveBusy}
-          canCancel={trip.data?.arrivedById === me.id}
-          onArrive={() => void arrive()}
-          onCancel={() => void cancelArrival()}
-        />
-      )}
     </main>
   );
 }
