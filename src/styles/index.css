@@ -455,35 +455,10 @@ code {
 }
 
 /* ── Arrival ────────────────────────────────────────────────────────────── */
-.arrival.is-arrived {
-  border-color: var(--in);
-  background: var(--in-soft);
-}
 
-.arrival__done {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
 
-.arrival__done > div {
-  flex: 1;
-  min-width: 160px;
-}
 
-.arrival__icon {
-  width: 44px;
-  height: 44px;
-  color: var(--in);
-  flex: none;
-}
 
-.arrival__time {
-  font-size: 1.8rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
 
 /* ── Employee bus info ──────────────────────────────────────────────────── */
 .busInfo {

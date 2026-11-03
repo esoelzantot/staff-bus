@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { ArrivalHistory } from '../../components/ArrivalHistory/ArrivalHistory';
-import { ArrivalSection } from '../../components/ArrivalSection/ArrivalSection';
 import { AttendanceExportDialog } from '../../components/AttendanceExportDialog/AttendanceExportDialog';
 import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
 import { EmployeeManager } from '../../components/EmployeeManager/EmployeeManager';
@@ -12,7 +11,7 @@ import { Spinner } from '../../components/common/Spinner';
 import { useActiveTrip, useBuses, useBusEmployees } from '../../hooks/useBusData';
 import { useStatusUpdater } from '../../hooks/useStatusUpdater';
 import { fetchAttendance } from '../../services/attendanceService';
-import { recordArrival, resetArrival, setActiveTripType } from '../../services/busTripService';
+import { setActiveTripType } from '../../services/busTripService';
 import type { AttendanceDay, Employee, StatusField, TripType } from '../../types';
 import { todayKey } from '../../utils/date/format';
 import { passengersFor } from '../../utils/passengers';
@@ -30,7 +29,6 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [tripBusy, setTripBusy] = useState(false);
-  const [arrivalBusy, setArrivalBusy] = useState(false);
   /** The employee whose card button was pressed (while the record loads, then while the PDF is built). */
   const [exportingId, setExportingId] = useState<string | null>(null);
   /** The loaded record: opens the month picker. */
@@ -183,14 +181,6 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
               />
             </>
           )}
-
-          <ArrivalSection
-            trip={trip.data}
-            loading={trip.loading && !trip.error}
-            busy={arrivalBusy}
-            onArrive={() => trip.data && void run(setArrivalBusy, () => recordArrival(trip.data!.id))}
-            onReset={() => trip.data && void run(setArrivalBusy, () => resetArrival(trip.data!.id))}
-          />
 
           <ArrivalHistory busId={bus.id} exportRoute={bus.route} />
 

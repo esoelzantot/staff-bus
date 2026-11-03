@@ -1,7 +1,7 @@
 import { onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { busesCollection, busRef, db, mapBus, mapTrip, tripRef } from '../firebase';
 import type { Bus, BusTrip, Employee, TripType } from '../types';
-import { makeError, toAppError } from '../utils/errors';
+import { toAppError } from '../utils/errors';
 import type { Unsubscribe } from './employeeService';
 
 type OnError = (error: unknown) => void;
@@ -62,24 +62,6 @@ export async function ensureTrip(bus: Bus, tripType: TripType, date: string): Pr
 export async function setActiveTripType(busId: string, tripType: TripType): Promise<void> {
   try {
     await updateDoc(busRef(busId), { activeTripType: tripType, updatedAt: serverTimestamp() });
-  } catch (err) {
-    throw toAppError(err);
-  }
-}
-
-/** Records the arrival once, using the server clock. A second call is rejected. */
-export async function recordArrival(tripId: string): Promise<void> {
-  try {
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(tripRef(tripId));
-      if (!snap.exists()) throw makeError('not-found', 'لا توجد رحلة نشطة.');
-      if (snap.data().arrivalTime) throw makeError('already-arrived');
-      tx.update(tripRef(tripId), {
-        arrivalTime: serverTimestamp(),
-        status: 'arrived',
-        updatedAt: serverTimestamp(),
-      });
-    });
   } catch (err) {
     throw toAppError(err);
   }
