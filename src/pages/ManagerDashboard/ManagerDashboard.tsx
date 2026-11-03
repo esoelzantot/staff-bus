@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ArrivalHistory } from '../../components/ArrivalHistory/ArrivalHistory';
 import { ArrivalSection } from '../../components/ArrivalSection/ArrivalSection';
 import { AttendanceExportDialog } from '../../components/AttendanceExportDialog/AttendanceExportDialog';
 import { EmployeeList } from '../../components/EmployeeList/EmployeeList';
@@ -127,7 +128,15 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
     <div className="page">
       <ErrorBanner message={buses.error} />
       {!bus ? (
-        <EmptyState>لا توجد رحلة نشطة.</EmptyState>
+        <>
+          <EmptyState>لا يوجد باص مسجّل بعد. أضف باص من سكريبت create-user ثم حدّث الصفحة.</EmptyState>
+          {/* never a dead end: the manager can always sign out */}
+          <div className="center">
+            <button type="button" className="btn btn--ghost" onClick={onLogout}>
+              تسجيل الخروج
+            </button>
+          </div>
+        </>
       ) : (
         <>
           <Header
@@ -182,6 +191,8 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
             onArrive={() => trip.data && void run(setArrivalBusy, () => recordArrival(trip.data!.id))}
             onReset={() => trip.data && void run(setArrivalBusy, () => resetArrival(trip.data!.id))}
           />
+
+          <ArrivalHistory busId={bus.id} exportRoute={bus.route} />
 
           <EmployeeManager employees={all} bus={bus} buses={list} />
 

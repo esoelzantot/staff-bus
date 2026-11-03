@@ -251,7 +251,7 @@ function EmployeeDialog({
             <select value={busId} onChange={(e) => setBusId(e.target.value)}>
               {buses.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.route} · {b.busNumber}
+                  {b.busNumber ? `${b.route} · ${b.busNumber}` : b.route}
                 </option>
               ))}
             </select>

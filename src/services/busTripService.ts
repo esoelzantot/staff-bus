@@ -1,4 +1,4 @@
-import { onSnapshot, orderBy, query, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { busesCollection, busRef, db, mapBus, mapTrip, tripRef } from '../firebase';
 import type { Bus, BusTrip, Employee, TripType } from '../types';
 import { makeError, toAppError } from '../utils/errors';
@@ -10,10 +10,20 @@ export function subscribeBus(busId: string, onData: (bus: Bus | null) => void, o
   return onSnapshot(busRef(busId), (snap) => onData(snap.exists() ? mapBus(snap) : null), onError);
 }
 
+/**
+ * Every bus, sorted by route (then id) in the browser. Deliberately NO orderBy in the query: Firestore leaves out
+ * every document that lacks the ordered field, so ordering by an optional field (it was busNumber, removed from the
+ * buses) silently returned no buses at all and the manager dashboard showed "no active trip".
+ */
 export function subscribeBuses(onData: (buses: Bus[]) => void, onError: OnError): Unsubscribe {
   return onSnapshot(
-    query(busesCollection(), orderBy('busNumber')),
-    (snap) => onData(snap.docs.map(mapBus)),
+    busesCollection(),
+    (snap) =>
+      onData(
+        snap.docs
+          .map(mapBus)
+          .sort((a, b) => (a.route ?? '').localeCompare(b.route ?? '', 'ar') || a.id.localeCompare(b.id)),
+      ),
     onError,
   );
 }
@@ -35,7 +45,6 @@ export async function ensureTrip(bus: Bus, tripType: TripType, date: string): Pr
       tx.set(ref, {
         busId: bus.id,
         route: bus.route,
-        busNumber: bus.busNumber,
         tripType,
         capacity: bus.capacity,
         date,
@@ -97,7 +106,6 @@ export async function recordArrivalByEmployee(bus: Bus, date: string, employee: 
       tx.set(ref, {
         busId: bus.id,
         route: bus.route,
-        busNumber: bus.busNumber,
         tripType,
         capacity: bus.capacity,
         date,

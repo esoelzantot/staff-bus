@@ -52,7 +52,7 @@ export function Header({ bus, buses, onSelectBus, onTripChange, tripBusy, onLogo
           <select className="select" value={bus.id} onChange={(e) => onSelectBus(e.target.value)} aria-label="اختيار الباص">
             {buses.map((b) => (
               <option key={b.id} value={b.id}>
-                {b.route} – {b.busNumber}
+                {b.busNumber ? `${b.route} – ${b.busNumber}` : b.route}
               </option>
             ))}
           </select>

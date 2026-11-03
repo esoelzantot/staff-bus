@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FiLogOut } from 'react-icons/fi';
+import { ArrivalHistory } from '../../components/ArrivalHistory/ArrivalHistory';
+import { ArrivalWelcome } from '../../components/ArrivalWelcome/ArrivalWelcome';
 import { ArrivedFooter } from '../../components/ArrivedFooter/ArrivedFooter';
 import { BusTracker } from '../../components/BusTracker/BusTracker';
 import { EmployeeCard } from '../../components/EmployeeCard/EmployeeCard';
@@ -172,8 +174,13 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
               </div>
             </>
           )}
+
+          <ArrivalHistory busId={me.busId} collapsible />
         </>
       )}
+
+      {/* "وصلنا! 🎉" for everyone watching at the moment the arrival is recorded */}
+      {me && <ArrivalWelcome trip={trip.data} loading={trip.loading} name={me.name} />}
 
       {/* "وصلنا" exists for the going direction only */}
       {me && bus.data?.activeTripType === 'going' && (

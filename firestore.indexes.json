@@ -1,4 +1,23 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "busTrips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "busId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tripType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

@@ -59,7 +59,8 @@ export interface AttendanceDay {
 export interface Bus {
   id: string;
   route: string;
-  busNumber: string;
+  /** Optional – no longer shown, and may be missing (never query or order by it). */
+  busNumber?: string;
   capacity: number;
   activeTripType: TripType;
   /** Number of employees whose goingStatus is "in" (kept atomically in sync). */
@@ -91,7 +92,8 @@ export interface BusTrip {
   id: string;
   busId: string;
   route: string;
-  busNumber: string;
+  /** Optional – no longer shown, and may be missing (never query or order by it). */
+  busNumber?: string;
   tripType: TripType;
   capacity: number;
   /** Local calendar day, yyyy-mm-dd. */

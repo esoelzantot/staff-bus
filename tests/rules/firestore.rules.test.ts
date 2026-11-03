@@ -482,3 +482,73 @@ describe('push subscriptions (daily reminders)', () => {
     await assertFails(setDoc(doc(as('u-mgr'), 'pushSubscriptions', 'd1'), device('u-mgr', 'MGR')));
   });
 });
+
+describe('arrival history (busTrips lists) and buses without a bus number', () => {
+  const today = todayKey();
+  const trip = (busId: string, date: string) => ({
+    busId,
+    route: `Route ${busId}`,
+    tripType: 'going',
+    capacity: 2,
+    date,
+    status: 'arrived',
+    arrivalTime: stamp,
+    arrivedById: 'EMP1',
+    arrivedByName: 'Name EMP1',
+    createdAt: stamp,
+    updatedAt: stamp,
+  });
+  const monthOf = (busId: string, db: Firestore) =>
+    getDocs(
+      query(
+        collection(db, 'busTrips'),
+        where('busId', '==', busId),
+        where('tripType', '==', 'going'),
+        where('date', '>=', '2026-11-01'),
+        where('date', '<=', '2026-11-31'),
+      ),
+    );
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(db, 'busTrips', 'bus1_2026-11-02_going'), trip('bus1', '2026-11-02'));
+      await setDoc(doc(db, 'busTrips', 'bus2_2026-11-02_going'), trip('bus2', '2026-11-02'));
+    });
+  });
+
+  it("an employee reads her own bus' month of arrivals", async () => {
+    await assertSucceeds(monthOf('bus1', as('u-emp1')));
+  });
+
+  it("…but not another bus' arrivals, nor an unfiltered list", async () => {
+    await assertFails(monthOf('bus2', as('u-emp1')));
+    await assertFails(getDocs(collection(as('u-emp1'), 'busTrips')));
+  });
+
+  it("a manager reads any bus' arrivals", async () => {
+    await assertSucceeds(monthOf('bus2', as('u-mgr')));
+  });
+
+  it('"وصلنا" works on a bus that has no bus number (the field was removed)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore() as unknown as Firestore;
+      await setDoc(doc(db, 'buses', 'bus1'), {
+        route: 'Route bus1',
+        capacity: 2,
+        activeTripType: 'going',
+        goingCount: 1,
+        returningCount: 0,
+      });
+    });
+    const { arrivalTime: _a, createdAt: _c, updatedAt: _u, ...rest } = trip('bus1', today);
+    await assertSucceeds(
+      setDoc(doc(as('u-emp1'), 'busTrips', `bus1_${today}_going`), {
+        ...rest,
+        arrivalTime: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+});

@@ -177,7 +177,6 @@ service cloud.firestore {
                                'arrivalTime', 'arrivedById', 'arrivedByName', 'createdAt', 'updatedAt'])
         && d.busId == me.busId
         && d.route == bus.route
-        && d.busNumber == bus.busNumber
         && d.capacity == bus.capacity
         && d.tripType == 'going'
         && d.date is string
@@ -385,10 +384,12 @@ service cloud.firestore {
     match /busTrips/{tripId} {
       // Employees read only trips of their own bus. A trip that does not exist yet ("resource == null") can be
       // listened to only under her own bus' id, so nobody can probe which trips exist on another bus.
-      allow read:   if isManager()
+      allow get:    if isManager()
                     || (isEmployee() && (resource == null
                           ? isOwnBusTripId(tripId)
                           : sameBus(resource.data.busId)));
+      // Lists (the monthly arrival history) must ask for the caller's own bus (where busId == …).
+      allow list:   if isManager() || sameBus(resource.data.busId);
       allow create: if (isManager() && tripCreateValid(tripId))
                     || (isEmployee() && employeeTripCreateValid(tripId));
       allow update: if isAdmin()

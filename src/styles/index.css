@@ -2092,3 +2092,284 @@ svg.stub__glyph .stub__window {
     animation: none;
   }
 }
+
+/* ── Arrival history ("سجل وصول الباص") ─────────────────────────────────── */
+.arrivalHistory__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.arrivalHistory__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.arrivalHistory__nav strong {
+  font-size: 1.05rem;
+}
+
+.arrivalStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.arrivalStats__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  text-align: center;
+}
+
+.arrivalStats__item span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.arrivalStats__item strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.arrivalStats__item small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.arrivalList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.arrivalRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 10px 4px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.arrivalRow:last-child {
+  border-bottom: none;
+}
+
+.arrivalRow__day {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.arrivalRow__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--in);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.arrivalRow__time--none {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.arrivalRow__by {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.arrivalRow.is-today {
+  background: var(--brand-soft);
+  border-radius: var(--radius-sm);
+  padding-inline: 8px;
+}
+
+.arrivalHistory__empty {
+  color: var(--muted);
+}
+
+@media (max-width: 420px) {
+  .arrivalStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── "وصلنا!" welcome (the moment the bus arrives) ─────────────────────── */
+.welcome {
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  text-align: center;
+  padding-top: 18px;
+  border-top: 6px solid var(--brand);
+}
+
+.welcome__rabbit {
+  width: auto;
+  height: 150px;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.18));
+  animation: welcome-hop 0.9s ease-out;
+}
+
+.welcome h1 {
+  font-size: 1.9rem;
+  color: var(--brand);
+}
+
+.welcome__text {
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.welcome__time {
+  display: inline-block;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--in-soft);
+  color: var(--in);
+  font-weight: 800;
+}
+
+.welcome__by {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.welcome__wish {
+  font-weight: 700;
+}
+
+.welcome .btn {
+  width: 100%;
+}
+
+/* confetti in the J&T colours, falling once */
+.welcome__confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.welcome__confetti i {
+  position: absolute;
+  top: -12px;
+  inset-inline-start: calc(var(--i) * 7% + 2%);
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--brand);
+  opacity: 0;
+  animation: confetti-fall 1.8s ease-in calc(var(--i) * 60ms) 1 forwards;
+}
+
+.welcome__confetti i:nth-child(3n) {
+  background: var(--in);
+}
+
+.welcome__confetti i:nth-child(3n + 1) {
+  background: #ffc400;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(420px) rotate(540deg);
+  }
+}
+
+@keyframes welcome-hop {
+  0% {
+    transform: translateY(24px) scale(0.9);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-8px) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome__rabbit,
+  .welcome__confetti i {
+    animation: none;
+  }
+
+  .welcome__confetti {
+    display: none;
+  }
+}
+
+/* ── بدري / متأخر (on time until 9:00) ──────────────────────────────────── */
+.arrivalBadge {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.arrivalBadge--early {
+  background: var(--in-soft);
+  color: var(--in);
+}
+
+.arrivalBadge--late {
+  background: var(--out-soft);
+  color: var(--out);
+}
+
+/* a late arrival time is red, an on-time one green */
+.arrivalRow__time:has(.arrivalBadge--late) {
+  color: var(--out);
+}
+
+.arrivalHistory__split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.arrivalHistory__rule {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.welcome .arrivalBadge {
+  font-size: 0.85rem;
+}
+
+.welcome__time--late {
+  background: var(--out-soft);
+  color: var(--out);
+}
