@@ -1,5 +1,5 @@
 import { FiLogOut } from 'react-icons/fi';
-import { useToday } from '../../hooks/useBusData';
+import { useServiceDay, useToday } from '../../hooks/useBusData';
 import type { Bus, TripType } from '../../types';
 import { formatDayLabel } from '../../utils/date/format';
 
@@ -14,6 +14,7 @@ interface Props {
 
 export function Header({ bus, buses, onSelectBus, onTripChange, tripBusy, onLogout }: Props) {
   const today = useToday();
+  const day = useServiceDay();
   return (
     <header className="board">
       <span className="speedLines speedLines--board" aria-hidden="true">
@@ -27,8 +28,8 @@ export function Header({ bus, buses, onSelectBus, onTripChange, tripBusy, onLogo
           <strong dir="auto">{bus.route}</strong>
         </div>
         <div className="board__day">
-          <span className="board__caption">اليوم</span>
-          <strong>{formatDayLabel(today)}</strong>
+          <span className="board__caption">{day === today ? 'اليوم' : 'اليوم الجاي'}</span>
+          <strong>{formatDayLabel(day)}</strong>
         </div>
       </div>
 

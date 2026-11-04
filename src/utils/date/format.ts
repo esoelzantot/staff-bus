@@ -2,9 +2,10 @@ import type { Timestamp } from 'firebase/firestore';
 
 /**
  * The service runs in Cairo: the trip "day", the nightly reset and every time shown to employees use Cairo
- * time, whatever the clock / time zone of the phone says. (Keep in sync with scripts/lib/cairoTime.ts.)
+ * time, whatever the clock / time zone of the phone says. (Keep in sync with api/_lib/cairoTime.ts.)
  */
 export const APP_TIME_ZONE = 'Africa/Cairo';
+const DAY_MS = 86_400_000;
 
 /** Calendar day (yyyy-mm-dd) in Cairo. */
 export function todayKey(date: Date = new Date()): string {
@@ -14,6 +15,20 @@ export function todayKey(date: Date = new Date()): string {
       .map((p) => [p.type, p.value]),
   );
   return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/**
+ * The working day IN / OUT belongs to: today until 22:00 Cairo (the reset), then the next day; Friday and Saturday
+ * are days off, so they belong to Sunday. Same logic as serviceDay in api/_lib/cairoTime.ts and firestore.rules.
+ */
+export function serviceDayKey(date: Date = new Date()): string {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-CA', { timeZone: APP_TIME_ZONE, hour: '2-digit', hourCycle: 'h23' }).format(date),
+  );
+  const start = Date.parse(`${todayKey(date)}T12:00:00Z`) + (hour >= 22 ? DAY_MS : 0);
+  const weekday = new Date(start).getUTCDay();
+  const skip = weekday === 5 ? 2 : weekday === 6 ? 1 : 0; // Friday, Saturday → Sunday
+  return new Date(start + skip * DAY_MS).toISOString().slice(0, 10);
 }
 
 type TimeInput = Timestamp | Date;

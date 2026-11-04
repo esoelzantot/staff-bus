@@ -65,9 +65,19 @@ service cloud.firestore {
           || (m == 4 && d - sinceFriday >= 24)
           || (m == 10 && !(d - sinceThursday >= 25 && (sinceThursday > 0 || t2.hours() >= 23)));
     }
-    function cairoToday() {
+    // The Cairo wall clock as a timestamp (its getters read as Cairo time).
+    function cairoClock() {
       let t2 = request.time + duration.value(2, 'h');
-      return cairoSummer(t2) ? dayKey(request.time + duration.value(3, 'h')) : dayKey(t2);
+      return cairoSummer(t2) ? request.time + duration.value(3, 'h') : t2;
+    }
+    function cairoToday() {
+      return dayKey(cairoClock());
+    }
+    // The working day IN / OUT belongs to: today until 22:00, then the next day; Friday and Saturday belong to Sunday.
+    function serviceDay() {
+      let evening = cairoClock() + duration.value(2, 'h');
+      let wd = evening.dayOfWeek() % 7;
+      return dayKey(wd == 5 ? evening + duration.value(2, 'd') : (wd == 6 ? evening + duration.value(1, 'd') : evening));
     }
     function isCairoToday(date) {
       return date == cairoToday();
@@ -116,7 +126,7 @@ service cloud.firestore {
       return d.keys().hasOnly(['date', 'goingStatus', 'returningStatus', 'updatedAt'])
         && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && d.date == day
-        && isCairoToday(day)
+        && day == serviceDay()
         && d.goingStatus == e.goingStatus
         && d.returningStatus == e.returningStatus
         && d.updatedAt == request.time;

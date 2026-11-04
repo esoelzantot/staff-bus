@@ -13,7 +13,7 @@ import { useStatusUpdater } from '../../hooks/useStatusUpdater';
 import { fetchAttendance } from '../../services/attendanceService';
 import { setActiveTripType } from '../../services/busTripService';
 import type { AttendanceDay, Employee, StatusField, TripType } from '../../types';
-import { todayKey } from '../../utils/date/format';
+import { serviceDayKey } from '../../utils/date/format';
 import { passengersFor } from '../../utils/passengers';
 import { toAppError } from '../../utils/errors';
 
@@ -63,13 +63,15 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
     try {
       // jsPDF is loaded on demand so it does not slow down the first page load.
       const { generateSummaryPdf } = await import('../../utils/pdf/generateSummaryPdf');
+      // The list is of the current working day; today's arrival only belongs on it until the 22:00 reset.
+      const date = serviceDayKey();
       generateSummaryPdf({
         route: bus.route,
         tripType,
-        date: trip.data?.date ?? todayKey(),
+        date,
         capacity: bus.capacity,
         passengers,
-        arrivalTime: trip.data?.arrivalTime ? trip.data.arrivalTime.toDate() : null,
+        arrivalTime: trip.data?.date === date && trip.data.arrivalTime ? trip.data.arrivalTime.toDate() : null,
       });
     } catch (err) {
       setActionError(toAppError(err, 'pdf').message);
@@ -190,7 +192,7 @@ export function ManagerDashboard({ onLogout }: { onLogout: () => void }) {
             <AttendanceExportDialog
               employeeName={monthly.employee.name}
               days={monthly.days}
-              today={todayKey()}
+              today={serviceDayKey()}
               busy={exportingId === monthly.employee.id}
               onExport={(month) => void downloadMonth(month)}
               onClose={() => setMonthly(null)}

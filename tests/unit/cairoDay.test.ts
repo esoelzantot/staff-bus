@@ -4,7 +4,8 @@
  * 15 minutes around each daylight-saving change. If Egypt changes its rules, this test fails – update both places.
  */
 import { describe, expect, it } from 'vitest';
-import { todayKey } from '../../src/utils/date/format';
+import { serviceDay } from '../../api/_lib/cairoTime.js';
+import { serviceDayKey, todayKey } from '../../src/utils/date/format';
 
 const HOUR = 3_600_000;
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -24,9 +25,19 @@ function cairoSummer(t2: Date): boolean {
   );
 }
 
-function rulesCairoToday(now: Date): string {
+function rulesCairoClock(now: Date): Date {
   const t2 = new Date(now.getTime() + 2 * HOUR);
-  return cairoSummer(t2) ? dayKey(new Date(now.getTime() + 3 * HOUR)) : dayKey(t2);
+  return cairoSummer(t2) ? new Date(now.getTime() + 3 * HOUR) : t2;
+}
+
+function rulesCairoToday(now: Date): string {
+  return dayKey(rulesCairoClock(now));
+}
+
+function rulesServiceDay(now: Date): string {
+  const evening = rulesCairoClock(now).getTime() + 2 * HOUR;
+  const wd = new Date(evening).getUTCDay();
+  return dayKey(new Date(evening + (wd === 5 ? 48 : wd === 6 ? 24 : 0) * HOUR));
 }
 
 describe("the rules' Cairo day", () => {
@@ -48,6 +59,23 @@ describe("the rules' Cairo day", () => {
           const now = new Date(t);
           if (rulesCairoToday(now) !== todayKey(now)) wrong.push(now.toISOString());
         }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+});
+
+describe('the working day: server, app and rules agree', () => {
+  it('every 15 minutes around the daylight-saving changes, and every hour of 2026–2028', () => {
+    const wrong: string[] = [];
+    const check = (now: Date) => {
+      const day = serviceDay(now);
+      if (serviceDayKey(now) !== day || rulesServiceDay(now) !== day) wrong.push(now.toISOString());
+    };
+    for (let t = Date.UTC(2026, 0, 1); t < Date.UTC(2029, 0, 1); t += HOUR) check(new Date(t));
+    for (let year = 2024; year <= 2032; year++) {
+      for (const month of [3, 9]) {
+        for (let t = Date.UTC(year, month, 23); t < Date.UTC(year, month + 1, 1); t += 15 * 60_000) check(new Date(t));
       }
     }
     expect(wrong).toEqual([]);

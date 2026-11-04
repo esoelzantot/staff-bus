@@ -22,7 +22,8 @@
  */
 import { FieldValue, type QuerySnapshot, type Transaction } from 'firebase-admin/firestore';
 import { renumber, sortWaiting, type Queued } from '../src/utils/waitingQueue.js';
-import { cairoDay, employeeEmail, getAdmin, HttpError, ID_PATTERN, randomPassword, type Admin } from './_lib/core.js';
+import { serviceDay } from './_lib/cairoTime.js';
+import { employeeEmail, getAdmin, HttpError, ID_PATTERN, randomPassword, type Admin } from './_lib/core.js';
 
 export type { Admin };
 
@@ -231,12 +232,12 @@ export async function createEmployee(a: Admin, body: Body): Promise<void> {
       returningStatus: initial,
       goingInCount: todayTally,
       returningInCount: todayTally,
-      countMonth: cairoDay().slice(0, 7), // the counters are this month's IN days
+      countMonth: serviceDay().slice(0, 7), // the counters are this month's IN days
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    // …and today's daily IN record exists from the first minute.
-    const day = cairoDay();
+    // …and the daily IN record of the current working day exists from the first minute.
+    const day = serviceDay();
     tx.create(empRef.collection('attendance').doc(day), {
       date: day,
       goingStatus: initial,

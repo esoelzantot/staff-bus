@@ -1,7 +1,7 @@
 import { FiClock, FiDownload } from 'react-icons/fi';
 import type { Employee, EmployeeStatus, StatusField } from '../../types';
 import { monthInDays } from '../../utils/attendance';
-import { todayKey } from '../../utils/date/format';
+import { serviceDayKey } from '../../utils/date/format';
 import { initials } from '../../utils/initials';
 import { StatusPill } from '../common/StatusPill';
 import { StatusToggle } from '../common/StatusToggle';
@@ -51,7 +51,7 @@ export function EmployeeCard({
   queueRank,
 }: Props) {
   // IN days of the current month only (the counters start again at 0 every month)
-  const days = monthInDays(employee, todayKey());
+  const days = monthInDays(employee, serviceDayKey());
   const isMain = employee.type === 'main';
   const typeLabel = isMain ? 'أساسي' : 'انتظار';
 

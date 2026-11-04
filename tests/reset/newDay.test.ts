@@ -19,10 +19,10 @@ import { doc, getDoc, serverTimestamp, setDoc, writeBatch, type Firestore } from
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { resetAllBuses } from '../../api/_lib/resetDay.js';
-import { todayKey } from '../../src/utils/date/format';
+import { serviceDayKey } from '../../src/utils/date/format';
 
 const PROJECT = 'demo-staff-bus-newday';
-const today = todayKey(); // the rules only accept records for the real Cairo day
+const today = serviceDayKey(); // the rules only accept records for the current working day
 
 let env: RulesTestEnvironment;
 let adminApp: App;

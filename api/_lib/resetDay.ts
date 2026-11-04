@@ -5,7 +5,7 @@
  * New-day state of every bus – the rule, without exceptions:
  *   - EVERY main employee     → IN for Going and Returning
  *   - EVERY waiting employee  → OUT for Going and Returning
- *     (also someone who already pressed IN / OUT after midnight, before the reset ran)
+ *     (also someone who already pressed IN / OUT after 22:00, before the reset ran)
  *   - IN tallies              → today counted for the main employees, exactly once (see dailyReset.ts tallyDelta)
  *   - daily IN record         → employees/{id}/attendance/{today} = the start statuses, for everyone
  *   - bus counters            → = number of main employees
@@ -22,7 +22,7 @@
  */
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { MAX_WRITES, loadEmployeeStates, resetUnit, type Op } from './attendance.js';
-import { RESET_WINDOW_END_HOUR, cairoNow } from './cairoTime.js';
+import { resetWindow, serviceDay } from './cairoTime.js';
 import { planBusReset } from './dailyReset.js';
 
 export type BusResult =
@@ -133,7 +133,7 @@ export async function resetAllBuses(db: Firestore, today: string, options: BusOp
 }
 
 export interface RunOptions {
-  /** Ignore the 00:00–05:59 Cairo window and the "already done today" checks (day and bus). */
+  /** Ignore the time window, the days off and the "already done" checks (day and bus). */
   force?: boolean;
   /** Plan only, write nothing. */
   dryRun?: boolean;
@@ -143,7 +143,7 @@ export interface RunOptions {
 }
 
 export type RunOutcome =
-  | { status: 'skipped'; day: string; reason: 'outside-window' | 'already-done' }
+  | { status: 'skipped'; day: string; reason: 'outside-window' | 'day-off' | 'already-done' }
   | {
       status: 'done' | 'dry-run' | 'failed';
       day: string;
@@ -154,16 +154,19 @@ export type RunOutcome =
 
 /**
  * One complete daily reset, safe to start any number of times (several schedulers may call it):
- *   - only between 00:00 and 05:59 Cairo, so a day in progress is never reset;
- *   - only once per Cairo day (meta/dailyReset.lastResetDate, and per bus buses/{id}.lastResetDate);
+ *   - from 22:00 Cairo on Sunday–Thursday (retries until 05:59), so a working day in progress is never reset and
+ *     Friday / Saturday have no reset;
+ *   - it prepares the next working day (serviceDay): Thursday night prepares Sunday;
+ *   - only once per working day (meta/dailyReset.lastResetDate, and per bus buses/{id}.lastResetDate);
  *   - a day where a bus failed is NOT marked as done, so the next call retries that bus (the others stay done).
  */
 export async function runDailyReset(db: Firestore, options: RunOptions = {}): Promise<RunOutcome> {
-  const { date: day, hour } = cairoNow(options.now);
+  const day = serviceDay(options.now);
   const metaRef = db.collection('meta').doc('dailyReset');
 
   if (!options.force) {
-    if (hour >= RESET_WINDOW_END_HOUR) return { status: 'skipped', day, reason: 'outside-window' };
+    const window = resetWindow(options.now);
+    if (window !== 'open') return { status: 'skipped', day, reason: window };
     if ((await metaRef.get()).data()?.lastResetDate === day) return { status: 'skipped', day, reason: 'already-done' };
   }
 

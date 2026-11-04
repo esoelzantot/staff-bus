@@ -2,7 +2,7 @@ import { onSnapshot, query, runTransaction, serverTimestamp, where } from 'fireb
 import { busRef, db, employeeRef, employeesCollection, mapBus, mapEmployee } from '../firebase';
 import type { EmployeeStatus, StatusField } from '../types';
 import type { Employee } from '../types';
-import { todayKey } from '../utils/date/format';
+import { serviceDayKey } from '../utils/date/format';
 import { makeError, toAppError } from '../utils/errors';
 import { recordAttendance } from './attendanceService';
 
@@ -46,7 +46,7 @@ const TALLY_FIELD = { goingStatus: 'goingInCount', returningStatus: 'returningIn
  * Only the requested field (and its IN tally) is written, so Going never touches Returning and vice versa.
  *
  * The IN tally counts DAYS: OUT → IN adds one, IN → OUT takes it back (never below zero), so switching
- * IN / OUT / IN on the same day is still one day. Afterwards today's IN record (employees/{id}/attendance) is
+ * IN / OUT / IN on the same day is still one day. Afterwards the working day's IN record (employees/{id}/attendance) is
  * brought up to date – separately, so a problem with the log can never block an IN / OUT change.
  */
 export async function setEmployeeStatus(employeeId: string, field: StatusField, value: EmployeeStatus): Promise<void> {
@@ -92,5 +92,5 @@ export async function setEmployeeStatus(employeeId: string, field: StatusField, 
   }
 
   // Not awaited on purpose: the button must not wait for the log (see recordAttendance).
-  if (saved) void recordAttendance(employeeId, todayKey(), saved);
+  if (saved) void recordAttendance(employeeId, serviceDayKey(), saved);
 }

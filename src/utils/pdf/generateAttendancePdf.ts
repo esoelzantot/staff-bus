@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import { COMPANY_NAME } from '../../config/constants';
 import type { AttendanceDay, EmployeeType } from '../../types';
 import { buildMonth, type MonthRow } from '../attendance';
-import { formatDate, formatMonth, formatTime, formatWeekday, todayKey } from '../date/format';
+import { formatDate, formatMonth, formatTime, formatWeekday, serviceDayKey, todayKey } from '../date/format';
 import { makeError } from '../errors';
 import { drawLabelled, drawPageNumbers, drawText, HEADER_FILL, IN_COLOR, MUTED, OUT_COLOR, PAGE, ZEBRA_FILL, type Rgb } from './pdfKit';
 
@@ -52,7 +52,7 @@ const cell = (status: MonthRow['goingStatus']): { text: string; color: Rgb } =>
 /** Builds the monthly document (no download) – kept separate so it can be tested / previewed. */
 export function buildAttendancePdf(data: AttendancePdfData): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const view = buildMonth(data.days, data.month, data.today ?? todayKey());
+  const view = buildMonth(data.days, data.month, data.today ?? serviceDayKey());
   let y = PAGE.margin + 10;
 
   drawText(doc, COMPANY_NAME, PAGE.margin, y, { size: 12, color: MUTED });

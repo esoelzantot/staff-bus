@@ -4,7 +4,7 @@
  * whichever comes second just reports "already done".
  *
  *   npm run reset-daily -- --dry-run   # show what would change, writes nothing
- *   npm run reset-daily -- --force     # run now (ignores the time window and the "already done today" check)
+ *   npm run reset-daily -- --force     # run now (ignores the time window, the days off and the "already done" check)
  *
  * Exit code 1 = the day is NOT reset; on GitHub every reason is printed as an annotation (run page + e-mail).
  */
@@ -32,7 +32,9 @@ async function main(): Promise<number> {
     console.log(
       outcome.reason === 'already-done'
         ? `Skipped: ${outcome.day} was already reset.`
-        : 'Skipped: outside the 00:00–05:59 Cairo window.',
+        : outcome.reason === 'day-off'
+          ? 'Skipped: Friday and Saturday are days off.'
+          : 'Skipped: outside the 22:00–05:59 Cairo window.',
     );
     return 0;
   }
@@ -46,15 +48,15 @@ async function main(): Promise<number> {
         if (b.overridden.length > 0) {
           annotateNotice(
             `${TITLE}: bus ${b.busId}`,
-            `Chose IN / OUT after midnight and were put back to the start of the day: ${b.overridden.join(', ')}`,
+            `Chose IN / OUT before the reset ran and were put back to the start of the day: ${b.overridden.join(', ')}`,
           );
         }
         const note = b.overridden.length > 0 ? ` (put back: ${b.overridden.join(', ')})` : '';
         return `| ${b.busId} | ✅${note} | ${b.employees} | ${b.goingCount} / ${b.returningCount} |`;
       }
       case 'already-done':
-        console.log(`Bus ${b.busId}: already reset today – left alone.`);
-        return `| ${b.busId} | already reset today | – | – |`;
+        console.log(`Bus ${b.busId}: already reset for this day – left alone.`);
+        return `| ${b.busId} | already reset for this day | – | – |`;
       case 'gone':
         return `| ${b.busId} | deleted during the run | – | – |`;
       default:

@@ -11,13 +11,13 @@
  */
 import { adminDb, projectId } from './lib/admin';
 import { loadEmployeeStates, MAX_WRITES, resetUnit } from '../api/_lib/attendance.js';
-import { cairoNow } from '../api/_lib/cairoTime.js';
+import { serviceDay } from '../api/_lib/cairoTime.js';
 import { planRecount } from '../api/_lib/dailyReset.js';
 
 const dryRun = process.argv.includes('--dry-run');
 
 async function main() {
-  const { date: today } = cairoNow();
+  const today = serviceDay(); // after 22:00 the statuses belong to the next working day
   console.log(`Project ${projectId} – this month's IN days up to ${today}${dryRun ? ' (DRY RUN)' : ''}`);
 
   for (const bus of (await adminDb.collection('buses').get()).docs) {

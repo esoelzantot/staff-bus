@@ -12,11 +12,11 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { SeatMap } from '../../components/common/SeatMap';
 import { ErrorBanner } from '../../components/common/ErrorBanner';
 import { Spinner } from '../../components/common/Spinner';
-import { useBus, useBusEmployees, useEmployeeRecord, useToday, useTodayGoingTrip } from '../../hooks/useBusData';
+import { useBus, useBusEmployees, useEmployeeRecord, useServiceDay, useToday, useTodayGoingTrip } from '../../hooks/useBusData';
 import { useStatusUpdater } from '../../hooks/useStatusUpdater';
 import { recordArrivalByEmployee, resetArrival } from '../../services/busTripService';
 import type { TripType } from '../../types';
-import { formatDayLabel, todayKey } from '../../utils/date/format';
+import { formatDayLabel, serviceDayKey } from '../../utils/date/format';
 import { toAppError } from '../../utils/errors';
 import { passengersFor } from '../../utils/passengers';
 import { queueRanks } from '../../utils/waitingQueue';
@@ -36,6 +36,7 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
   const people = useBusEmployees(me?.busId ?? null);
   const updater = useStatusUpdater();
   const today = useToday();
+  const serviceDay = useServiceDay();
   const trip = useTodayGoingTrip(bus.data);
   const [arriveBusy, setArriveBusy] = useState(false);
   const [arriveError, setArriveError] = useState<string | null>(null);
@@ -84,7 +85,7 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
       generateSummaryPdf({
         route: bus.data.route,
         tripType,
-        date: todayKey(),
+        date: serviceDayKey(),
         capacity: bus.data.capacity,
         passengers: tripType === 'going' ? going : returning,
         arrivalTime: null,
@@ -118,8 +119,8 @@ export function EmployeeDashboard({ uid, employeeId, onLogout }: Props) {
           {bus.data && (
             <section className="busInfo" aria-label="بيانات الباص">
               <div className="busInfo__day">
-                <span className="busInfo__caption">اليوم</span>
-                <strong>{formatDayLabel(today)}</strong>
+                <span className="busInfo__caption">{serviceDay === today ? 'اليوم' : 'اليوم الجاي'}</span>
+                <strong>{formatDayLabel(serviceDay)}</strong>
               </div>
               <div>
                 <span className="busInfo__caption">المسار</span>

@@ -9,7 +9,7 @@ import {
 import { subscribeBusLocation } from '../services/busLocationService';
 import { subscribeBusEmployees, subscribeEmployee } from '../services/employeeService';
 import type { Bus, BusLocation, BusTrip, Employee } from '../types';
-import { todayKey } from '../utils/date/format';
+import { serviceDayKey, todayKey } from '../utils/date/format';
 import { toAppError } from '../utils/errors';
 import { useLiveData } from './useLiveData';
 
@@ -31,6 +31,16 @@ export const useBusEmployees = (busId: string | null) =>
   useLiveData<Employee[]>(busId ? (ok, err) => subscribeBusEmployees(busId, ok, err) : null, [busId]);
 
 /** Current local day; updates itself when midnight passes so a new trip is opened. */
+/** The working day IN / OUT belongs to (see serviceDayKey); moves on at 22:00 Cairo. */
+export function useServiceDay(): string {
+  const [day, setDay] = useState(serviceDayKey());
+  useEffect(() => {
+    const timer = setInterval(() => setDay(serviceDayKey()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return day;
+}
+
 export function useToday(): string {
   const [day, setDay] = useState(todayKey());
   useEffect(() => {

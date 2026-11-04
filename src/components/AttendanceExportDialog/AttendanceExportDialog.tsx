@@ -8,7 +8,7 @@ interface Props {
   employeeName: string;
   /** Every recorded day of the employee (any months). */
   days: AttendanceDay[];
-  /** Today's day key (yyyy-mm-dd, Cairo). */
+  /** The current working day (serviceDayKey, yyyy-mm-dd), so the totals match the counter on the card. */
   today: string;
   /** Called with the chosen month (yyyy-mm); the caller builds and downloads the PDF. */
   onExport: (month: string) => void;

@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
-import { todayKey } from '../../src/utils/date/format';
+import { serviceDayKey, todayKey } from '../../src/utils/date/format';
 
 let env: RulesTestEnvironment;
 
@@ -385,7 +385,7 @@ describe('the IN tally counts DAYS', () => {
 });
 
 describe('the daily IN record (employees/{id}/attendance/{day})', () => {
-  const today = todayKey();
+  const today = serviceDayKey();
   const record = (going: 'in' | 'out', returning: 'in' | 'out', date = today) => ({
     date,
     goingStatus: going,

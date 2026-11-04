@@ -1,13 +1,13 @@
 /**
- * Vercel serverless function – the daily reset, started on time by cron-job.org (00:05 Cairo, every day).
+ * Vercel serverless function – the daily reset, started on time by cron-job.org (22:05 Cairo, Sunday–Thursday).
  *
  *   POST /api/daily-reset             Authorization: Bearer <NOTIFY_SECRET>
  *        ?dryRun=1                    plan only, write nothing
- *        ?force=1                     ignore the 00:00–05:59 window and the "already done today" check
+ *        ?force=1                     ignore the time window, the days off and the "already done" check
  *
  * What it does is api/_lib/resetDay.ts: main employees IN / IN (+1 IN day), waiting OUT / OUT, a daily record for
  * everyone, counters recomputed, direction → Going, location sharing stopped – one transaction per bus.
- * Safe to call again and again: it acts once per Cairo day, so the GitHub Actions workflow can stay as a backup.
+ * Safe to call again and again: it acts once per working day, so the GitHub Actions workflow can stay as a backup.
  *
  * Answers 200 with the result (done / skipped / dry run), 500 when a bus could not be reset – so cron-job.org
  * reports the failure (e-mail) and the next call retries.

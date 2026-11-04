@@ -19,7 +19,7 @@ export interface MonthRow {
 export interface MonthView {
   /** yyyy-mm */
   month: string;
-  /** Every calendar day of the month – up to today for the running month, never a future day. */
+  /** Every calendar day of the month – up to the current working day for the running month. */
   rows: MonthRow[];
   /** Days that have a record. */
   recorded: number;
@@ -52,8 +52,8 @@ export function buildMonth(days: readonly AttendanceDay[], month: string, today:
 }
 
 /**
- * The IN days shown on a card: this month's (Cairo) counters, or 0 when the stored counters still belong to an
- * earlier month (between midnight on the 1st and the nightly reset).
+ * The IN days shown on a card: the counters of the current working day's month, or 0 when the stored counters still
+ * belong to an earlier month (`today` = serviceDayKey(), the day the reset counts for).
  */
 export function monthInDays(employee: Employee, today: string): { going: number; returning: number } {
   if (employee.countMonth !== monthOf(today)) return { going: 0, returning: 0 };

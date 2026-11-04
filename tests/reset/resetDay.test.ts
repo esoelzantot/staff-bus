@@ -233,6 +233,36 @@ describe('runDailyReset (what /api/daily-reset and the GitHub backup call)', () 
     expect(await employee('M1')).toMatchObject({ goingStatus: 'out', goingInCount: 4 });
   });
 
+  it('22:05 Sunday: prepares Monday, and leaves the record of Sunday alone', async () => {
+    await db.doc('employees/M1/attendance/2026-10-25').set({ date: '2026-10-25', goingStatus: 'out', returningStatus: 'out' });
+    const outcome = await runDailyReset(db, { now: new Date('2026-10-25T22:05:00+03:00') });
+    expect(outcome).toMatchObject({ status: 'done', day: '2026-10-26' });
+    expect((await db.doc('employees/M1/attendance/2026-10-25').get()).data()).toMatchObject({ goingStatus: 'out' });
+    expect((await db.doc('employees/M1/attendance/2026-10-26').get()).data()).toMatchObject({ goingStatus: 'in' });
+    expect(await meta()).toMatchObject({ lastResetDate: '2026-10-26' });
+  });
+
+  it('22:05 Thursday: prepares Sunday, not Friday', async () => {
+    const outcome = await runDailyReset(db, { now: new Date('2026-10-22T22:05:00+03:00') });
+    expect(outcome).toMatchObject({ status: 'done', day: '2026-10-25' });
+    expect((await db.doc('employees/M1/attendance/2026-10-23').get()).exists).toBe(false);
+  });
+
+  it('a choice made after the reset survives the retry at 23:05', async () => {
+    await runDailyReset(db, { now: new Date('2026-10-25T22:05:00+03:00') });
+    await db.doc('employees/M1').update({ goingStatus: 'out' });
+    const again = await runDailyReset(db, { now: new Date('2026-10-25T23:05:00+03:00') });
+    expect(again).toMatchObject({ status: 'skipped', reason: 'already-done' });
+    expect(await employee('M1')).toMatchObject({ goingStatus: 'out' });
+  });
+
+  it('Friday and Saturday nights: no reset, nothing changes', async () => {
+    for (const now of ['2026-10-23T22:05:00+03:00', '2026-10-24T22:05:00+03:00']) {
+      expect(await runDailyReset(db, { now: new Date(now) })).toMatchObject({ status: 'skipped', reason: 'day-off' });
+    }
+    expect(await employee('M1')).toMatchObject({ goingStatus: 'out', goingInCount: 4 });
+  });
+
   it('…unless forced (manual run)', async () => {
     expect(await runDailyReset(db, { now: at('07:30'), force: true })).toMatchObject({ status: 'done' });
   });
